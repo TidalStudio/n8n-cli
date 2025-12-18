@@ -3,6 +3,7 @@
 import click
 
 from n8n_cli import __version__
+from n8n_cli.commands.configure import configure
 
 
 @click.group(invoke_without_command=True)
@@ -12,6 +13,10 @@ def cli(ctx: click.Context) -> None:
     """n8n CLI - A command-line interface for interacting with n8n."""
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
+
+
+# Register commands
+cli.add_command(configure)
 
 
 if __name__ == "__main__":
