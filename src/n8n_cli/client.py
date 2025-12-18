@@ -79,6 +79,23 @@ class N8nClient:
         except httpx.HTTPError:
             return False
 
+    async def get_workflow(self, workflow_id: str) -> dict[str, Any]:
+        """Fetch a single workflow by ID.
+
+        Args:
+            workflow_id: The workflow ID (numeric or string).
+
+        Returns:
+            Full workflow definition including nodes and connections.
+
+        Raises:
+            httpx.HTTPStatusError: If workflow not found (404) or other API error.
+        """
+        response = await self.client.get(f"/api/v1/workflows/{workflow_id}")
+        response.raise_for_status()
+        result: dict[str, Any] = response.json()
+        return result
+
     async def get_workflows(
         self,
         active: bool | None = None,
