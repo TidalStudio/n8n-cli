@@ -132,3 +132,134 @@ class TestGetWorkflow:
             client._client.get = AsyncMock(return_value=mock_response)
             with pytest.raises(httpx.HTTPStatusError):
                 await client.get_workflow("999")
+
+
+class TestCreateWorkflow:
+    """Tests for N8nClient.create_workflow method."""
+
+    @pytest.mark.asyncio
+    async def test_create_workflow_success(self) -> None:
+        """Test create_workflow POSTs to correct endpoint."""
+        from typing import Any
+        from unittest.mock import AsyncMock, MagicMock
+
+        workflow_data: dict[str, Any] = {
+            "name": "New Workflow",
+            "nodes": [],
+            "connections": {},
+        }
+        response_data: dict[str, Any] = {
+            "id": "456",
+            "name": "New Workflow",
+            "active": False,
+            "nodes": [],
+            "connections": {},
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = MagicMock()
+
+        async with N8nClient(base_url="http://test", api_key="key") as client:
+            mock_post = AsyncMock(return_value=mock_response)
+            client._client.post = mock_post
+            result = await client.create_workflow(workflow_data)
+
+        mock_post.assert_called_once_with("/api/v1/workflows", json=workflow_data)
+        assert result["id"] == "456"
+        assert result["name"] == "New Workflow"
+
+    @pytest.mark.asyncio
+    async def test_create_workflow_returns_response(self) -> None:
+        """Test create_workflow returns the created workflow."""
+        from typing import Any
+        from unittest.mock import AsyncMock, MagicMock
+
+        response_data: dict[str, Any] = {
+            "id": "789",
+            "name": "Created Workflow",
+            "active": False,
+            "nodes": [{"id": "n1"}],
+            "connections": {},
+            "createdAt": "2024-01-01T00:00:00.000Z",
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = MagicMock()
+
+        async with N8nClient(base_url="http://test", api_key="key") as client:
+            client._client.post = AsyncMock(return_value=mock_response)
+            result = await client.create_workflow({"name": "Test", "nodes": []})
+
+        assert "id" in result
+        assert "createdAt" in result
+
+    @pytest.mark.asyncio
+    async def test_create_workflow_raises_on_400(self) -> None:
+        """Test create_workflow raises HTTPStatusError on validation error."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        import httpx
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Bad request",
+            request=httpx.Request("POST", "http://test"),
+            response=httpx.Response(400),
+        )
+
+        async with N8nClient(base_url="http://test", api_key="key") as client:
+            client._client.post = AsyncMock(return_value=mock_response)
+            with pytest.raises(httpx.HTTPStatusError):
+                await client.create_workflow({"name": "Test", "nodes": []})
+
+
+class TestActivateWorkflow:
+    """Tests for N8nClient.activate_workflow method."""
+
+    @pytest.mark.asyncio
+    async def test_activate_workflow_success(self) -> None:
+        """Test activate_workflow PATCHes with active=true."""
+        from typing import Any
+        from unittest.mock import AsyncMock, MagicMock
+
+        response_data: dict[str, Any] = {
+            "id": "123",
+            "name": "Activated Workflow",
+            "active": True,
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = MagicMock()
+
+        async with N8nClient(base_url="http://test", api_key="key") as client:
+            mock_patch = AsyncMock(return_value=mock_response)
+            client._client.patch = mock_patch
+            result = await client.activate_workflow("123")
+
+        mock_patch.assert_called_once_with(
+            "/api/v1/workflows/123",
+            json={"active": True},
+        )
+        assert result["active"] is True
+
+    @pytest.mark.asyncio
+    async def test_activate_workflow_raises_on_404(self) -> None:
+        """Test activate_workflow raises HTTPStatusError on 404."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        import httpx
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Not found",
+            request=httpx.Request("PATCH", "http://test"),
+            response=httpx.Response(404),
+        )
+
+        async with N8nClient(base_url="http://test", api_key="key") as client:
+            client._client.patch = AsyncMock(return_value=mock_response)
+            with pytest.raises(httpx.HTTPStatusError):
+                await client.activate_workflow("999")

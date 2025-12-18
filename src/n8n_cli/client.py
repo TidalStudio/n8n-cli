@@ -126,3 +126,40 @@ class N8nClient:
             ]
 
         return workflows
+
+    async def create_workflow(self, workflow_data: dict[str, Any]) -> dict[str, Any]:
+        """Create a new workflow.
+
+        Args:
+            workflow_data: Workflow definition (name, nodes, connections, etc.)
+
+        Returns:
+            Created workflow with assigned ID.
+
+        Raises:
+            httpx.HTTPStatusError: If API returns error (400 for validation, etc.)
+        """
+        response = await self.client.post("/api/v1/workflows", json=workflow_data)
+        response.raise_for_status()
+        result: dict[str, Any] = response.json()
+        return result
+
+    async def activate_workflow(self, workflow_id: str) -> dict[str, Any]:
+        """Activate a workflow by ID.
+
+        Args:
+            workflow_id: The workflow ID to activate.
+
+        Returns:
+            Updated workflow with active=True.
+
+        Raises:
+            httpx.HTTPStatusError: If workflow not found (404) or other API error.
+        """
+        response = await self.client.patch(
+            f"/api/v1/workflows/{workflow_id}",
+            json={"active": True},
+        )
+        response.raise_for_status()
+        result: dict[str, Any] = response.json()
+        return result
