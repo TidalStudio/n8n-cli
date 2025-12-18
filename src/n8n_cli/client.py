@@ -163,3 +163,26 @@ class N8nClient:
         response.raise_for_status()
         result: dict[str, Any] = response.json()
         return result
+
+    async def update_workflow(
+        self, workflow_id: str, workflow_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update an existing workflow.
+
+        Args:
+            workflow_id: The workflow ID to update.
+            workflow_data: Updated workflow definition.
+
+        Returns:
+            Updated workflow.
+
+        Raises:
+            httpx.HTTPStatusError: If workflow not found (404) or other API error.
+        """
+        response = await self.client.put(
+            f"/api/v1/workflows/{workflow_id}",
+            json=workflow_data,
+        )
+        response.raise_for_status()
+        result: dict[str, Any] = response.json()
+        return result
