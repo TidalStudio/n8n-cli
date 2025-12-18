@@ -5,6 +5,7 @@ import click
 from n8n_cli import __version__
 from n8n_cli.commands.configure import configure
 from n8n_cli.commands.create import create
+from n8n_cli.commands.delete import delete
 from n8n_cli.commands.update import update
 from n8n_cli.commands.workflow import workflow
 from n8n_cli.commands.workflows import workflows
@@ -22,6 +23,7 @@ def cli(ctx: click.Context) -> None:
 # Register commands
 cli.add_command(configure)
 cli.add_command(create)
+cli.add_command(delete)
 cli.add_command(update)
 cli.add_command(workflow)
 cli.add_command(workflows)

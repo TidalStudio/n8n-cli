@@ -263,3 +263,41 @@ class TestActivateWorkflow:
             client._client.patch = AsyncMock(return_value=mock_response)
             with pytest.raises(httpx.HTTPStatusError):
                 await client.activate_workflow("999")
+
+
+class TestDeleteWorkflow:
+    """Tests for N8nClient.delete_workflow method."""
+
+    @pytest.mark.asyncio
+    async def test_delete_workflow_success(self) -> None:
+        """Test delete_workflow DELETEs to correct endpoint."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        async with N8nClient(base_url="http://test", api_key="key") as client:
+            mock_delete = AsyncMock(return_value=mock_response)
+            client._client.delete = mock_delete
+            await client.delete_workflow("123")
+
+        mock_delete.assert_called_once_with("/api/v1/workflows/123")
+
+    @pytest.mark.asyncio
+    async def test_delete_workflow_raises_on_404(self) -> None:
+        """Test delete_workflow raises HTTPStatusError on 404."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        import httpx
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Not found",
+            request=httpx.Request("DELETE", "http://test"),
+            response=httpx.Response(404),
+        )
+
+        async with N8nClient(base_url="http://test", api_key="key") as client:
+            client._client.delete = AsyncMock(return_value=mock_response)
+            with pytest.raises(httpx.HTTPStatusError):
+                await client.delete_workflow("999")
