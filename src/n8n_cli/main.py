@@ -4,6 +4,7 @@ import click
 
 from n8n_cli import __version__
 from n8n_cli.commands.configure import configure
+from n8n_cli.commands.workflows import workflows
 
 
 @click.group(invoke_without_command=True)
@@ -17,6 +18,7 @@ def cli(ctx: click.Context) -> None:
 
 # Register commands
 cli.add_command(configure)
+cli.add_command(workflows)
 
 
 if __name__ == "__main__":

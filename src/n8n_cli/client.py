@@ -1,7 +1,7 @@
 """HTTP client for interacting with the n8n API."""
 
 from types import TracebackType
-from typing import Self
+from typing import Any, Self
 
 import httpx
 
@@ -78,3 +78,34 @@ class N8nClient:
             return response.status_code == 200
         except httpx.HTTPError:
             return False
+
+    async def get_workflows(
+        self,
+        active: bool | None = None,
+        tags: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch workflows from n8n instance.
+
+        Args:
+            active: Filter by active status (None = all).
+            tags: Filter by tag names.
+
+        Returns:
+            List of workflow dictionaries.
+        """
+        response = await self.client.get("/api/v1/workflows")
+        response.raise_for_status()
+        workflows: list[dict[str, Any]] = response.json().get("data", [])
+
+        # Apply client-side filtering for active/inactive
+        if active is not None:
+            workflows = [w for w in workflows if w.get("active") == active]
+
+        # Apply tag filtering
+        if tags:
+            workflows = [
+                w for w in workflows
+                if any(t.get("name") in tags for t in w.get("tags", []))
+            ]
+
+        return workflows
