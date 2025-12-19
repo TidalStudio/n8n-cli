@@ -10,12 +10,10 @@ from typing import Any
 
 import click
 import httpx
-from rich.console import Console
 
 from n8n_cli.client import N8nClient
 from n8n_cli.config import ConfigurationError, require_config
-
-console = Console()
+from n8n_cli.output import STATUS_COLORS, format_datetime, get_formatter_from_context
 
 # Terminal execution statuses
 TERMINAL_STATUSES = {"success", "error", "crashed", "canceled"}
@@ -51,7 +49,9 @@ POLL_INTERVAL = 1.0  # seconds
     type=int,
     help="Timeout in seconds when using --wait (default: 300).",
 )
+@click.pass_context
 def trigger(
+    ctx: click.Context,
     workflow_id: str,
     data_json: str | None,
     file_path: Path | None,
@@ -74,9 +74,11 @@ def trigger(
 
         n8n-cli trigger 123 --wait --timeout 60
     """
+    formatter = get_formatter_from_context(ctx)
+
     # Validate mutual exclusivity
     if data_json and file_path:
-        console.print("[red]Error:[/red] Cannot use both --data and --file")
+        formatter.output_error("Cannot use both --data and --file")
         raise SystemExit(1)
 
     # Parse input data
@@ -86,16 +88,14 @@ def trigger(
         try:
             parsed = json.loads(data_json)
             if not isinstance(parsed, dict):
-                console.print(
-                    "[red]Error:[/red] Invalid JSON data - must be an object, "
-                    "not a list or primitive"
+                formatter.output_error(
+                    "Invalid JSON data - must be an object, not a list or primitive"
                 )
                 raise SystemExit(1)
             input_data = parsed
         except json.JSONDecodeError as e:
-            console.print(
-                f"[red]Error:[/red] Invalid JSON data - {e.msg} "
-                f"at line {e.lineno}, column {e.colno}"
+            formatter.output_error(
+                f"Invalid JSON data - {e.msg} at line {e.lineno}, column {e.colno}"
             )
             raise SystemExit(1) from None
 
@@ -103,22 +103,20 @@ def trigger(
         try:
             json_content = file_path.read_text(encoding="utf-8")
         except OSError as e:
-            console.print(f"[red]Error:[/red] Failed to read file: {e}")
+            formatter.output_error(f"Failed to read file: {e}")
             raise SystemExit(1) from None
 
         try:
             parsed = json.loads(json_content)
             if not isinstance(parsed, dict):
-                console.print(
-                    "[red]Error:[/red] Invalid JSON in file - must be an object, "
-                    "not a list or primitive"
+                formatter.output_error(
+                    "Invalid JSON in file - must be an object, not a list or primitive"
                 )
                 raise SystemExit(1)
             input_data = parsed
         except json.JSONDecodeError as e:
-            console.print(
-                f"[red]Error:[/red] Invalid JSON in file - {e.msg} "
-                f"at line {e.lineno}, column {e.colno}"
+            formatter.output_error(
+                f"Invalid JSON in file - {e.msg} at line {e.lineno}, column {e.colno}"
             )
             raise SystemExit(1) from None
 
@@ -126,7 +124,7 @@ def trigger(
     try:
         config = require_config()
     except ConfigurationError as e:
-        console.print(f"[red]Error:[/red] {e}")
+        formatter.output_error(str(e))
         raise SystemExit(1) from None
 
     assert config.api_url is not None
@@ -146,7 +144,7 @@ def trigger(
         )
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
-            console.print(f"[red]Error:[/red] Workflow not found: {workflow_id}")
+            formatter.output_error(f"Workflow not found: {workflow_id}")
         elif e.response.status_code == 400:
             # Try to extract error message
             try:
@@ -156,23 +154,49 @@ def trigger(
                 error_msg = str(e)
             # Check if it's an inactive workflow error
             if "active" in error_msg.lower() or "inactive" in error_msg.lower():
-                console.print(
-                    f"[red]Error:[/red] Workflow is not active. "
+                formatter.output_error(
+                    f"Workflow is not active. "
                     f"Enable with: n8n-cli update {workflow_id} --activate"
                 )
             else:
-                console.print(f"[red]Error:[/red] {error_msg}")
+                formatter.output_error(error_msg)
         else:
-            console.print(f"[red]Error:[/red] API error: {e.response.status_code}")
+            formatter.output_error(f"API error: {e.response.status_code}")
         raise SystemExit(1) from None
     except TimeoutError:
-        console.print(
-            f"[red]Error:[/red] Execution timed out after {timeout} seconds"
-        )
+        formatter.output_error(f"Execution timed out after {timeout} seconds")
         raise SystemExit(1) from None
 
-    # Output result
-    click.echo(json.dumps(result, indent=2))
+    def format_status(s: str) -> str:
+        """Format status with color."""
+        color = STATUS_COLORS.get(s, "white")
+        return f"[{color}]{s}[/{color}]"
+
+    # Output result - different fields for immediate vs waited execution
+    if wait_for_completion:
+        formatter.output_dict(
+            result,
+            fields=["id", "workflowId", "status", "startedAt", "stoppedAt", "data"],
+            labels={
+                "id": "ID",
+                "workflowId": "Workflow ID",
+                "status": "Status",
+                "startedAt": "Started",
+                "stoppedAt": "Stopped",
+                "data": "Data",
+            },
+            formatters={
+                "status": format_status,
+                "startedAt": format_datetime,
+                "stoppedAt": format_datetime,
+            },
+        )
+    else:
+        formatter.output_dict(
+            result,
+            fields=["executionId"],
+            labels={"executionId": "Execution ID"},
+        )
 
 
 async def _trigger_workflow(

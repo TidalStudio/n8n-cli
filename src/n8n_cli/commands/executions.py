@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any
 
 import click
-from rich.console import Console
 
 from n8n_cli.client import N8nClient
 from n8n_cli.config import ConfigurationError, require_config
-
-console = Console()
+from n8n_cli.output import STATUS_COLORS, format_datetime, get_formatter_from_context
 
 VALID_STATUSES = ["success", "error", "running", "waiting", "canceled"]
 
@@ -25,7 +22,9 @@ VALID_STATUSES = ["success", "error", "running", "waiting", "canceled"]
     help="Filter by execution status",
 )
 @click.option("--limit", default=20, help="Number of results (default: 20, max: 250)")
+@click.pass_context
 def executions(
+    ctx: click.Context,
     workflow: str | None,
     status: str | None,
     limit: int,
@@ -34,11 +33,13 @@ def executions(
 
     Returns executions as JSON with: id, workflowId, status, startedAt, stoppedAt.
     """
+    formatter = get_formatter_from_context(ctx)
+
     # Load config
     try:
         config = require_config()
     except ConfigurationError as e:
-        console.print(f"[red]Error:[/red] {e}")
+        formatter.output_error(str(e))
         raise SystemExit(1) from None
 
     assert config.api_url is not None
@@ -49,7 +50,21 @@ def executions(
         _fetch_executions(config.api_url, config.api_key, workflow, status, limit)
     )
 
-    click.echo(json.dumps(result, indent=2))
+    def format_status(s: str) -> str:
+        """Format status with color."""
+        color = STATUS_COLORS.get(s, "white")
+        return f"[{color}]{s}[/{color}]"
+
+    formatter.output_list(
+        result,
+        columns=["id", "workflowId", "status", "startedAt", "stoppedAt"],
+        headers=["ID", "Workflow", "Status", "Started", "Stopped"],
+        formatters={
+            "status": format_status,
+            "startedAt": format_datetime,
+            "stoppedAt": format_datetime,
+        },
+    )
 
 
 async def _fetch_executions(

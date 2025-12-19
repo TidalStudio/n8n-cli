@@ -10,12 +10,10 @@ from typing import Any
 
 import click
 import httpx
-from rich.console import Console
 
 from n8n_cli.client import N8nClient
 from n8n_cli.config import ConfigurationError, require_config
-
-console = Console()
+from n8n_cli.output import format_datetime, get_formatter_from_context
 
 
 @click.command()
@@ -49,7 +47,9 @@ console = Console()
     is_flag=True,
     help="Deactivate the workflow.",
 )
+@click.pass_context
 def update(
+    ctx: click.Context,
     workflow_id: str,
     file_path: Path | None,
     use_stdin: bool,
@@ -75,13 +75,15 @@ def update(
 
         n8n-cli update 123 --file workflow.json --name "Override Name" --activate
     """
+    formatter = get_formatter_from_context(ctx)
+
     # Validate mutual exclusivity
     if file_path and use_stdin:
-        console.print("[red]Error:[/red] Cannot use both --file and --stdin")
+        formatter.output_error("Cannot use both --file and --stdin")
         raise SystemExit(1)
 
     if activate and deactivate:
-        console.print("[red]Error:[/red] Cannot use both --activate and --deactivate")
+        formatter.output_error("Cannot use both --activate and --deactivate")
         raise SystemExit(1)
 
     # Check that at least one modification is specified
@@ -89,8 +91,8 @@ def update(
     has_quick_update = name_override or activate or deactivate
 
     if not has_file_input and not has_quick_update:
-        console.print(
-            "[red]Error:[/red] Must specify --file, --stdin, or a modification flag "
+        formatter.output_error(
+            "Must specify --file, --stdin, or a modification flag "
             "(--name, --activate, --deactivate)"
         )
         raise SystemExit(1)
@@ -99,7 +101,7 @@ def update(
     try:
         config = require_config()
     except ConfigurationError as e:
-        console.print(f"[red]Error:[/red] {e}")
+        formatter.output_error(str(e))
         raise SystemExit(1) from None
 
     assert config.api_url is not None
@@ -115,30 +117,27 @@ def update(
                 file_path.read_text(encoding="utf-8") if file_path else sys.stdin.read()
             )
         except OSError as e:
-            console.print(f"[red]Error:[/red] Failed to read input: {e}")
+            formatter.output_error(f"Failed to read input: {e}")
             raise SystemExit(1) from None
 
         # Parse JSON
         try:
             workflow_data = json.loads(json_content)
         except json.JSONDecodeError as e:
-            console.print(
-                f"[red]Error:[/red] Invalid JSON - {e.msg} at line {e.lineno}, column {e.colno}"
+            formatter.output_error(
+                f"Invalid JSON - {e.msg} at line {e.lineno}, column {e.colno}"
             )
             raise SystemExit(1) from None
 
         if not isinstance(workflow_data, dict):
-            console.print(
-                "[red]Error:[/red] Invalid JSON - workflow must be an object, "
-                "not a list or primitive"
+            formatter.output_error(
+                "Invalid JSON - workflow must be an object, not a list or primitive"
             )
             raise SystemExit(1)
 
         # Validate required fields for full update
         if "nodes" not in workflow_data:
-            console.print(
-                "[red]Error:[/red] Workflow definition missing required field 'nodes'"
-            )
+            formatter.output_error("Workflow definition missing required field 'nodes'")
             raise SystemExit(1)
 
         # Strip ID from input - we use the CLI argument
@@ -164,15 +163,29 @@ def update(
                 error_msg = error_data.get("message", str(e))
             except (json.JSONDecodeError, KeyError):
                 error_msg = str(e)
-            console.print(f"[red]Error:[/red] Validation failed - {error_msg}")
+            formatter.output_error(f"Validation failed - {error_msg}")
         elif e.response.status_code == 404:
-            console.print(f"[red]Error:[/red] Workflow '{workflow_id}' not found")
+            formatter.output_error(f"Workflow '{workflow_id}' not found")
         else:
-            console.print(f"[red]Error:[/red] API error: {e.response.status_code}")
+            formatter.output_error(f"API error: {e.response.status_code}")
         raise SystemExit(1) from None
 
     # Output updated workflow
-    click.echo(json.dumps(result, indent=2))
+    formatter.output_dict(
+        result,
+        fields=["id", "name", "active", "createdAt", "updatedAt"],
+        labels={
+            "id": "ID",
+            "name": "Name",
+            "active": "Active",
+            "createdAt": "Created",
+            "updatedAt": "Updated",
+        },
+        formatters={
+            "createdAt": format_datetime,
+            "updatedAt": format_datetime,
+        },
+    )
 
 
 async def _update_workflow(

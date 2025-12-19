@@ -3,37 +3,37 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any
 
 import click
-from rich.console import Console
 
 from n8n_cli.client import N8nClient
 from n8n_cli.config import ConfigurationError, require_config
-
-console = Console()
+from n8n_cli.output import format_datetime, get_formatter_from_context, truncate
 
 
 @click.command()
 @click.option("--active", is_flag=True, help="Filter to only active workflows")
 @click.option("--inactive", is_flag=True, help="Filter to only inactive workflows")
 @click.option("--tag", "tags", multiple=True, help="Filter by tag name (can be repeated)")
-def workflows(active: bool, inactive: bool, tags: tuple[str, ...]) -> None:
+@click.pass_context
+def workflows(ctx: click.Context, active: bool, inactive: bool, tags: tuple[str, ...]) -> None:
     """List all workflows in the n8n instance.
 
     Returns workflows as JSON with: id, name, active, tags, createdAt, updatedAt.
     """
+    formatter = get_formatter_from_context(ctx)
+
     # Validate mutually exclusive flags
     if active and inactive:
-        console.print("[red]Error:[/red] Cannot use both --active and --inactive")
+        formatter.output_error("Cannot use both --active and --inactive")
         raise SystemExit(1)
 
     # Load config
     try:
         config = require_config()
     except ConfigurationError as e:
-        console.print(f"[red]Error:[/red] {e}")
+        formatter.output_error(str(e))
         raise SystemExit(1) from None
 
     # Determine active filter
@@ -55,8 +55,16 @@ def workflows(active: bool, inactive: bool, tags: tuple[str, ...]) -> None:
         )
     )
 
-    # Output as pretty-printed JSON
-    click.echo(json.dumps(result, indent=2))
+    # Output with formatter
+    formatter.output_list(
+        result,
+        columns=["id", "name", "active", "updatedAt"],
+        headers=["ID", "Name", "Active", "Updated"],
+        formatters={
+            "name": lambda x: truncate(str(x), 40),
+            "updatedAt": format_datetime,
+        },
+    )
 
 
 async def _fetch_workflows(

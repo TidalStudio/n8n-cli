@@ -3,31 +3,31 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any
 
 import click
 import httpx
-from rich.console import Console
 
 from n8n_cli.client import N8nClient
 from n8n_cli.config import ConfigurationError, require_config
-
-console = Console()
+from n8n_cli.output import format_datetime, get_formatter_from_context
 
 
 @click.command()
 @click.argument("workflow_id")
-def workflow(workflow_id: str) -> None:
+@click.pass_context
+def workflow(ctx: click.Context, workflow_id: str) -> None:
     """Get detailed information about a specific workflow.
 
     Returns the full workflow definition including nodes and connections as JSON.
     """
+    formatter = get_formatter_from_context(ctx)
+
     # Load config
     try:
         config = require_config()
     except ConfigurationError as e:
-        console.print(f"[red]Error:[/red] {e}")
+        formatter.output_error(str(e))
         raise SystemExit(1) from None
 
     # Fetch workflow (require_config guarantees these are not None)
@@ -44,13 +44,29 @@ def workflow(workflow_id: str) -> None:
         )
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
-            console.print(f"[red]Error:[/red] Workflow not found: {workflow_id}")
+            formatter.output_error(f"Workflow not found: {workflow_id}")
         else:
-            console.print(f"[red]Error:[/red] API error: {e.response.status_code}")
+            formatter.output_error(f"API error: {e.response.status_code}")
         raise SystemExit(1) from None
 
-    # Output as pretty-printed JSON
-    click.echo(json.dumps(result, indent=2))
+    # Output workflow details
+    formatter.output_dict(
+        result,
+        fields=["id", "name", "active", "createdAt", "updatedAt", "nodes", "connections"],
+        labels={
+            "id": "ID",
+            "name": "Name",
+            "active": "Active",
+            "createdAt": "Created",
+            "updatedAt": "Updated",
+            "nodes": "Nodes",
+            "connections": "Connections",
+        },
+        formatters={
+            "createdAt": format_datetime,
+            "updatedAt": format_datetime,
+        },
+    )
 
 
 async def _fetch_workflow(

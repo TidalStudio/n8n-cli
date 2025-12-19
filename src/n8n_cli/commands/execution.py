@@ -3,31 +3,31 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any
 
 import click
 import httpx
-from rich.console import Console
 
 from n8n_cli.client import N8nClient
 from n8n_cli.config import ConfigurationError, require_config
-
-console = Console()
+from n8n_cli.output import STATUS_COLORS, format_datetime, get_formatter_from_context
 
 
 @click.command()
 @click.argument("execution_id")
-def execution(execution_id: str) -> None:
+@click.pass_context
+def execution(ctx: click.Context, execution_id: str) -> None:
     """Get detailed information about a specific execution.
 
     Returns the full execution data including node outputs as JSON.
     """
+    formatter = get_formatter_from_context(ctx)
+
     # Load config
     try:
         config = require_config()
     except ConfigurationError as e:
-        console.print(f"[red]Error:[/red] {e}")
+        formatter.output_error(str(e))
         raise SystemExit(1) from None
 
     # Fetch execution (require_config guarantees these are not None)
@@ -44,13 +44,34 @@ def execution(execution_id: str) -> None:
         )
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
-            console.print(f"[red]Error:[/red] Execution not found: {execution_id}")
+            formatter.output_error(f"Execution not found: {execution_id}")
         else:
-            console.print(f"[red]Error:[/red] API error: {e.response.status_code}")
+            formatter.output_error(f"API error: {e.response.status_code}")
         raise SystemExit(1) from None
 
-    # Output as pretty-printed JSON
-    click.echo(json.dumps(result, indent=2))
+    def format_status(s: str) -> str:
+        """Format status with color."""
+        color = STATUS_COLORS.get(s, "white")
+        return f"[{color}]{s}[/{color}]"
+
+    # Output execution details
+    formatter.output_dict(
+        result,
+        fields=["id", "workflowId", "status", "startedAt", "stoppedAt", "data"],
+        labels={
+            "id": "ID",
+            "workflowId": "Workflow ID",
+            "status": "Status",
+            "startedAt": "Started",
+            "stoppedAt": "Stopped",
+            "data": "Data",
+        },
+        formatters={
+            "status": format_status,
+            "startedAt": format_datetime,
+            "stoppedAt": format_datetime,
+        },
+    )
 
 
 async def _fetch_execution(

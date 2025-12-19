@@ -17,10 +17,27 @@ from n8n_cli.commands.workflows import workflows
 
 
 @click.group(invoke_without_command=True)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "table"], case_sensitive=False),
+    default=None,
+    envvar="N8N_CLI_FORMAT",
+    help="Output format (default: json)",
+)
+@click.option(
+    "--no-color",
+    is_flag=True,
+    default=False,
+    help="Disable colored output",
+)
 @click.version_option(version=__version__, prog_name="n8n-cli")
 @click.pass_context
-def cli(ctx: click.Context) -> None:
+def cli(ctx: click.Context, output_format: str | None, no_color: bool) -> None:
     """n8n CLI - A command-line interface for interacting with n8n."""
+    ctx.ensure_object(dict)
+    ctx.obj["output_format"] = output_format or "json"
+    ctx.obj["no_color"] = no_color
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
