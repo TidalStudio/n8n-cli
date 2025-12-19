@@ -83,3 +83,9 @@ disallow_untyped_defs = false
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+
+[project.urls]
+Homepage = "https://github.com/TidalStudio/n8n-cli"
+Documentation = "https://github.com/TidalStudio/n8n-cli/wiki"
+Repository = "https://github.com/TidalStudio/n8n-cli"
+Issues = "https://github.com/TidalStudio/n8n-cli/issues"
