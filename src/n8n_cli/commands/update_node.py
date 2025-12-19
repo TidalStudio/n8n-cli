@@ -188,6 +188,8 @@ WRITABLE_WORKFLOW_FIELDS = {
     "connections",
     "settings",
     "staticData",
+    "active",
+    "pinData",
 }
 
 # Fields that the n8n API accepts for nodes within workflow updates
