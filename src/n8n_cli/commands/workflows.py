@@ -17,8 +17,15 @@ from n8n_cli.output import format_datetime, get_formatter_from_context, truncate
 @click.option("--active", is_flag=True, help="Filter to only active workflows")
 @click.option("--inactive", is_flag=True, help="Filter to only inactive workflows")
 @click.option("--tag", "tags", multiple=True, help="Filter by tag name (can be repeated)")
+@click.option(
+    "--summary",
+    is_flag=True,
+    help="Return only essential fields (id, name, active, createdAt, updatedAt, tags)",
+)
 @click.pass_context
-def workflows(ctx: click.Context, active: bool, inactive: bool, tags: tuple[str, ...]) -> None:
+def workflows(
+    ctx: click.Context, active: bool, inactive: bool, tags: tuple[str, ...], summary: bool
+) -> None:
     """List all workflows in the n8n instance.
 
     Returns workflows as JSON with: id, name, active, tags, createdAt, updatedAt.
@@ -51,6 +58,10 @@ def workflows(ctx: click.Context, active: bool, inactive: bool, tags: tuple[str,
         )
     )
 
+    # If summary mode, strip down to essential fields only
+    if summary:
+        result = _summarize_workflows(result)
+
     # Output with formatter
     formatter.output_list(
         result,
@@ -61,6 +72,19 @@ def workflows(ctx: click.Context, active: bool, inactive: bool, tags: tuple[str,
             "updatedAt": format_datetime,
         },
     )
+
+
+def _summarize_workflows(workflows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Strip workflows down to essential fields only.
+
+    Args:
+        workflows: Full workflow data from API.
+
+    Returns:
+        List of workflows with only id, name, active, createdAt, updatedAt, tags.
+    """
+    summary_fields = {"id", "name", "active", "createdAt", "updatedAt", "tags"}
+    return [{k: v for k, v in wf.items() if k in summary_fields} for wf in workflows]
 
 
 async def _fetch_workflows(
