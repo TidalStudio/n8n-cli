@@ -188,9 +188,41 @@ WRITABLE_WORKFLOW_FIELDS = {
     "connections",
     "settings",
     "staticData",
-    "pinData",
-    "active",
 }
+
+# Fields that the n8n API accepts for nodes within workflow updates
+# Node objects from GET include createdAt/updatedAt which must be stripped
+WRITABLE_NODE_FIELDS = {
+    "id",
+    "name",
+    "webhookId",
+    "disabled",
+    "notesInFlow",
+    "notes",
+    "type",
+    "typeVersion",
+    "executeOnce",
+    "alwaysOutputData",
+    "retryOnFail",
+    "maxTries",
+    "waitBetweenTries",
+    "onError",
+    "position",
+    "parameters",
+    "credentials",
+}
+
+
+def strip_readonly_node_fields(node: dict[str, Any]) -> dict[str, Any]:
+    """Strip read-only fields from a node object.
+
+    Args:
+        node: The node dictionary from GET response.
+
+    Returns:
+        A new dictionary with only writable node fields.
+    """
+    return {k: v for k, v in node.items() if k in WRITABLE_NODE_FIELDS}
 
 
 def extract_writable_fields(workflow: dict[str, Any]) -> dict[str, Any]:
@@ -202,7 +234,13 @@ def extract_writable_fields(workflow: dict[str, Any]) -> dict[str, Any]:
     Returns:
         A new dictionary with only writable fields.
     """
-    return {k: v for k, v in workflow.items() if k in WRITABLE_WORKFLOW_FIELDS}
+    result = {k: v for k, v in workflow.items() if k in WRITABLE_WORKFLOW_FIELDS}
+
+    # Also strip read-only fields from each node
+    if "nodes" in result and isinstance(result["nodes"], list):
+        result["nodes"] = [strip_readonly_node_fields(n) for n in result["nodes"]]
+
+    return result
 
 
 async def _update_node(
