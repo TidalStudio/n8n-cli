@@ -78,8 +78,6 @@ For detailed documentation, see the [Wiki](https://github.com/TidalStudio/n8n-cl
 - [Configuration](https://github.com/TidalStudio/n8n-cli/wiki/Configuration) - Setup and environment variables
 - [Command Reference](https://github.com/TidalStudio/n8n-cli/wiki/Command-Reference) - Full command documentation
 - [Agent Integration](https://github.com/TidalStudio/n8n-cli/wiki/Agent-Integration) - Using with AI agents
+- [Environment Variables](https://github.com/TidalStudio/n8n-cli/wiki/Environment-Variables) - All configuration options
 - [Troubleshooting](https://github.com/TidalStudio/n8n-cli/wiki/Troubleshooting) - Common issues and solutions
-
-## License
-
-MIT
+- [Development](https://github.com/TidalStudio/n8n-cli/wiki/Development) - Contributing guide
