@@ -18,6 +18,8 @@
 
 ---
 
+> **Note:** The `trigger` command requires n8n with the [execute workflow endpoint](https://github.com/n8n-io/n8n/pull/23435). This PR is pending merge into n8n core. Until then, you'll need to use a custom n8n build with this endpoint enabled.
+
 ## Installation
 
 ```bash
