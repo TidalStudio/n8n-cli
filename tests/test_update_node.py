@@ -13,6 +13,7 @@ from n8n_cli.commands.update_node import (
     find_node,
     parse_value,
     set_nested_param,
+    strip_readonly_fields,
     update_node,
 )
 from n8n_cli.config import Config
@@ -145,6 +146,69 @@ class TestParseValue:
     def test_parse_quoted_string_as_string(self) -> None:
         """Test that JSON strings result in unquoted strings."""
         assert parse_value('"hello"') == "hello"
+
+
+class TestStripReadonlyFields:
+    """Tests for strip_readonly_fields helper function."""
+
+    def test_strips_id(self) -> None:
+        """Test that id field is stripped."""
+        workflow = {"id": "abc123", "name": "Test", "nodes": []}
+        result = strip_readonly_fields(workflow)
+        assert "id" not in result
+        assert result["name"] == "Test"
+
+    def test_strips_timestamps(self) -> None:
+        """Test that createdAt and updatedAt are stripped."""
+        workflow = {
+            "name": "Test",
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-02T00:00:00Z",
+            "nodes": [],
+        }
+        result = strip_readonly_fields(workflow)
+        assert "createdAt" not in result
+        assert "updatedAt" not in result
+        assert result["name"] == "Test"
+
+    def test_strips_all_readonly_fields(self) -> None:
+        """Test that all readonly fields are stripped."""
+        workflow = {
+            "id": "abc123",
+            "name": "Test",
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-02T00:00:00Z",
+            "versionId": "v1",
+            "isArchived": False,
+            "description": "A test workflow",
+            "nodes": [],
+            "connections": {},
+            "active": True,
+        }
+        result = strip_readonly_fields(workflow)
+        assert "id" not in result
+        assert "createdAt" not in result
+        assert "updatedAt" not in result
+        assert "versionId" not in result
+        assert "isArchived" not in result
+        assert "description" not in result
+        # These should remain
+        assert result["name"] == "Test"
+        assert result["nodes"] == []
+        assert result["connections"] == {}
+        assert result["active"] is True
+
+    def test_preserves_nodes_and_connections(self) -> None:
+        """Test that nodes and connections are preserved."""
+        workflow = {
+            "id": "abc123",
+            "name": "Test",
+            "nodes": [{"id": "node1", "name": "Node 1"}],
+            "connections": {"Node 1": {}},
+        }
+        result = strip_readonly_fields(workflow)
+        assert result["nodes"] == [{"id": "node1", "name": "Node 1"}]
+        assert result["connections"] == {"Node 1": {}}
 
 
 class TestSetNestedParam:
