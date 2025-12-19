@@ -76,7 +76,7 @@ def main() -> None:
     current_version = get_current_version()
     new_version = bump_version(current_version, bump_type)
 
-    print(f"\n🚀 Releasing n8n-cli")
+    print("\n🚀 Releasing n8n-cli")
     print(f"   {current_version} -> {new_version}\n")
 
     # Confirm
