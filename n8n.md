@@ -76,6 +76,20 @@ n8n-cli update ID --deactivate                           # Deactivate
 n8n-cli update ID --file workflow.json --name "Name" --activate  # Combined
 ```
 
+#### Update Node Parameter
+Update a specific parameter on a node without handling the full workflow JSON:
+```bash
+n8n-cli update-node ID --node-name "HTTP Request" --param "url" --value "https://api.example.com"
+n8n-cli update-node ID --node-id "xyz789" --param "method" --value "POST"
+n8n-cli update-node ID -n "HTTP Request" -p "options.timeout" -v "30000"  # Nested param
+n8n-cli update-node ID -n "Set" -p "values" -v '{"key": "value"}'         # JSON value
+```
+
+**Options:**
+- `--node-name/-n` or `--node-id/-i` (one required): Identify the node
+- `--param/-p` (required): Parameter path (supports dot notation for nested params)
+- `--value/-v` (required): New value (JSON auto-detected: numbers, booleans, objects parsed; else string)
+
 #### Delete Workflow
 ```bash
 n8n-cli delete ID --confirm                # Delete with confirmation
@@ -209,6 +223,15 @@ IDS=$(n8n-cli workflows --summary --tag maintenance | jq -r '.[].id')
 
 # Disable them all
 for id in $IDS; do n8n-cli disable "$id"; done
+```
+
+### Update a webhook URL in a workflow
+```bash
+# Update the URL parameter on an HTTP Request node
+n8n-cli update-node abc123 --node-name "HTTP Request" --param "url" --value "https://new-api.example.com/webhook"
+
+# Update nested options like timeout
+n8n-cli update-node abc123 -n "HTTP Request" -p "options.timeout" -v "60000"
 ```
 
 ---

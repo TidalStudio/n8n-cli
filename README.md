@@ -260,6 +260,50 @@ n8n-cli update 123 --file workflow.json --name "My Workflow" --activate
 
 ---
 
+### update-node
+
+Update a specific parameter on a node within a workflow. This is useful for making targeted changes without handling the full workflow JSON.
+
+```bash
+n8n-cli update-node WORKFLOW_ID [OPTIONS]
+```
+
+**Options:**
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--node-name NAME` | `-n` | Name of the node to update |
+| `--node-id ID` | `-i` | ID of the node to update |
+| `--param PATH` | `-p` | Parameter path (supports dot notation) |
+| `--value VALUE` | `-v` | New value (JSON auto-detected) |
+
+**Note:** Either `--node-name` or `--node-id` is required (but not both).
+
+**Examples:**
+```bash
+# Update URL on an HTTP Request node by name
+n8n-cli update-node abc123 --node-name "HTTP Request" --param "url" --value "https://api.example.com"
+
+# Update by node ID
+n8n-cli update-node abc123 --node-id "xyz789" --param "method" --value "POST"
+
+# Update nested parameter using dot notation
+n8n-cli update-node abc123 -n "HTTP Request" -p "options.timeout" -v "30000"
+
+# Update with boolean value (auto-detected as JSON)
+n8n-cli update-node abc123 -n "IF" -p "conditions.boolean[0].value1" -v "true"
+
+# Update with JSON object
+n8n-cli update-node abc123 -n "Set" -p "values" -v '{"key": "value"}'
+```
+
+**Value type detection:**
+- Numbers (`123`, `3.14`) → parsed as numbers
+- Booleans (`true`, `false`) → parsed as booleans
+- JSON objects/arrays (`{"key": "value"}`, `[1,2,3]`) → parsed as JSON
+- Everything else → treated as strings
+
+---
+
 ### delete
 
 Delete a workflow by ID.

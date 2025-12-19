@@ -15,6 +15,7 @@ from n8n_cli.commands.execution import execution
 from n8n_cli.commands.executions import executions
 from n8n_cli.commands.trigger import trigger
 from n8n_cli.commands.update import update
+from n8n_cli.commands.update_node import update_node
 from n8n_cli.commands.workflow import workflow
 from n8n_cli.commands.workflows import workflows
 from n8n_cli.exceptions import N8nCliError
@@ -86,6 +87,7 @@ cli.add_command(execution)
 cli.add_command(executions)
 cli.add_command(trigger)
 cli.add_command(update)
+cli.add_command(update_node)
 cli.add_command(workflow)
 cli.add_command(workflows)
 
