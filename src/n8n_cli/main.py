@@ -6,6 +6,7 @@ from n8n_cli import __version__
 from n8n_cli.commands.configure import configure
 from n8n_cli.commands.create import create
 from n8n_cli.commands.delete import delete
+from n8n_cli.commands.execution import execution
 from n8n_cli.commands.executions import executions
 from n8n_cli.commands.trigger import trigger
 from n8n_cli.commands.update import update
@@ -26,6 +27,7 @@ def cli(ctx: click.Context) -> None:
 cli.add_command(configure)
 cli.add_command(create)
 cli.add_command(delete)
+cli.add_command(execution)
 cli.add_command(executions)
 cli.add_command(trigger)
 cli.add_command(update)
