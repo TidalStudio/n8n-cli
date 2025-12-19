@@ -1,18 +1,37 @@
 #!/usr/bin/env python3
 """Release script for n8n-cli.
 
+Interactive script that:
+1. Prompts for version bump type (patch/minor/major/custom)
+2. Updates version in pyproject.toml and src/n8n_cli/__init__.py
+3. Builds the package
+4. Uploads to PyPI
+5. Commits, tags, and pushes to git
+
 Usage:
-    python release.py patch    # 0.3.0 -> 0.3.1
-    python release.py minor    # 0.3.0 -> 0.4.0
-    python release.py major    # 0.3.0 -> 1.0.0
-    python release.py 0.5.0    # Set specific version
+    python release.py
+
+Environment variables:
+    PYPI_TOKEN - PyPI API token (optional, will prompt if not set)
 """
 
+import os
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+
+def load_env_file() -> None:
+    """Load environment variables from .env file if it exists."""
+    env_file = Path(".env")
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                os.environ.setdefault(key.strip(), value.strip())
 
 
 def get_current_version() -> str:
@@ -66,18 +85,42 @@ def run(cmd: str, check: bool = True) -> subprocess.CompletedProcess:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        print(__doc__)
+    load_env_file()
+    current_version = get_current_version()
+
+    print("\n🚀 n8n-cli Release")
+    print(f"   Current version: {current_version}\n")
+
+    # Show options
+    patch_v = bump_version(current_version, "patch")
+    minor_v = bump_version(current_version, "minor")
+    major_v = bump_version(current_version, "major")
+
+    print("   Version options:")
+    print(f"   [1] patch  -> {patch_v}")
+    print(f"   [2] minor  -> {minor_v}")
+    print(f"   [3] major  -> {major_v}")
+    print("   [4] custom (enter your own)")
+    print()
+
+    choice = input("Select option [1-4]: ").strip()
+
+    if choice == "1":
+        new_version = patch_v
+    elif choice == "2":
+        new_version = minor_v
+    elif choice == "3":
+        new_version = major_v
+    elif choice == "4":
+        new_version = input("Enter version (e.g., 1.0.0): ").strip()
+        if not re.match(r"^\d+\.\d+\.\d+$", new_version):
+            print("Invalid version format. Use X.Y.Z")
+            sys.exit(1)
+    else:
+        print("Invalid choice.")
         sys.exit(1)
 
-    bump_type = sys.argv[1]
-
-    # Get versions
-    current_version = get_current_version()
-    new_version = bump_version(current_version, bump_type)
-
-    print("\n🚀 Releasing n8n-cli")
-    print(f"   {current_version} -> {new_version}\n")
+    print(f"\n   {current_version} -> {new_version}\n")
 
     # Confirm
     response = input("Continue? [y/N] ").strip().lower()
@@ -104,7 +147,12 @@ def main() -> None:
 
     # Step 4: Upload to PyPI
     print("\n☁️  Uploading to PyPI...")
-    run("python -m twine upload dist/*")
+    pypi_token = os.environ.get("PYPI_TOKEN")
+    if pypi_token:
+        run(f"python -m twine upload dist/* -u __token__ -p {pypi_token}")
+    else:
+        print("   (PYPI_TOKEN not set, will prompt for credentials)")
+        run("python -m twine upload dist/*")
 
     # Step 5: Git commit and push
     print("\n📤 Committing and pushing to git...")
