@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://pypi.org/project/n8n-cli/"><img src="https://img.shields.io/pypi/v/n8n-cli.svg" alt="PyPI version"></a>
   <a href="https://pypi.org/project/n8n-cli/"><img src="https://img.shields.io/pypi/pyversions/n8n-cli.svg" alt="Python versions"></a>
-  <a href="https://github.com/TidalStudio/n8n-cli/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/n8n-cli.svg" alt="License"></a>
+  <a href="https://github.com/TidalStudio/n8n-cli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TidalStudio/n8n-cli" alt="License"></a>
   <a href="https://github.com/TidalStudio/n8n-cli/actions"><img src="https://github.com/TidalStudio/n8n-cli/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/badge/code%20style-ruff-000000.svg" alt="Code style: ruff"></a>
 </p>
