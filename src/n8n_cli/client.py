@@ -164,6 +164,26 @@ class N8nClient:
         result: dict[str, Any] = response.json()
         return result
 
+    async def deactivate_workflow(self, workflow_id: str) -> dict[str, Any]:
+        """Deactivate a workflow by ID.
+
+        Args:
+            workflow_id: The workflow ID to deactivate.
+
+        Returns:
+            Updated workflow with active=False.
+
+        Raises:
+            httpx.HTTPStatusError: If workflow not found (404) or other API error.
+        """
+        response = await self.client.patch(
+            f"/api/v1/workflows/{workflow_id}",
+            json={"active": False},
+        )
+        response.raise_for_status()
+        result: dict[str, Any] = response.json()
+        return result
+
     async def update_workflow(
         self, workflow_id: str, workflow_data: dict[str, Any]
     ) -> dict[str, Any]:
