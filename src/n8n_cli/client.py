@@ -244,3 +244,30 @@ class N8nClient:
         response.raise_for_status()
         result: dict[str, Any] = response.json()
         return result
+
+    async def get_executions(
+        self,
+        workflow_id: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Fetch executions with optional filters.
+
+        Args:
+            workflow_id: Filter by workflow ID.
+            status: Filter by status (success, error, running, waiting, canceled).
+            limit: Max number of results (default 20, max 250).
+
+        Returns:
+            List of execution dictionaries.
+        """
+        params: dict[str, Any] = {"limit": min(limit, 250), "includeData": "false"}
+        if workflow_id:
+            params["workflowId"] = workflow_id
+        if status:
+            params["status"] = status
+
+        response = await self.client.get("/api/v1/executions", params=params)
+        response.raise_for_status()
+        executions: list[dict[str, Any]] = response.json().get("data", [])
+        return executions
