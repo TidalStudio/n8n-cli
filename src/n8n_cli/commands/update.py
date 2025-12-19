@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any
 
 import click
-import httpx
 
 from n8n_cli.client import N8nClient
-from n8n_cli.config import ConfigurationError, require_config
+from n8n_cli.config import require_config
+from n8n_cli.exceptions import ValidationError
 from n8n_cli.output import format_datetime, get_formatter_from_context
 
 
@@ -79,30 +79,23 @@ def update(
 
     # Validate mutual exclusivity
     if file_path and use_stdin:
-        formatter.output_error("Cannot use both --file and --stdin")
-        raise SystemExit(1)
+        raise ValidationError("Cannot use both --file and --stdin")
 
     if activate and deactivate:
-        formatter.output_error("Cannot use both --activate and --deactivate")
-        raise SystemExit(1)
+        raise ValidationError("Cannot use both --activate and --deactivate")
 
     # Check that at least one modification is specified
     has_file_input = file_path or use_stdin
     has_quick_update = name_override or activate or deactivate
 
     if not has_file_input and not has_quick_update:
-        formatter.output_error(
+        raise ValidationError(
             "Must specify --file, --stdin, or a modification flag "
             "(--name, --activate, --deactivate)"
         )
-        raise SystemExit(1)
 
-    # Load config early
-    try:
-        config = require_config()
-    except ConfigurationError as e:
-        formatter.output_error(str(e))
-        raise SystemExit(1) from None
+    # Load config (raises ConfigError if not configured)
+    config = require_config()
 
     assert config.api_url is not None
     assert config.api_key is not None
@@ -117,58 +110,40 @@ def update(
                 file_path.read_text(encoding="utf-8") if file_path else sys.stdin.read()
             )
         except OSError as e:
-            formatter.output_error(f"Failed to read input: {e}")
-            raise SystemExit(1) from None
+            raise ValidationError(f"Failed to read input: {e}") from e
 
         # Parse JSON
         try:
             workflow_data = json.loads(json_content)
         except json.JSONDecodeError as e:
-            formatter.output_error(
+            raise ValidationError(
                 f"Invalid JSON - {e.msg} at line {e.lineno}, column {e.colno}"
-            )
-            raise SystemExit(1) from None
+            ) from e
 
         if not isinstance(workflow_data, dict):
-            formatter.output_error(
+            raise ValidationError(
                 "Invalid JSON - workflow must be an object, not a list or primitive"
             )
-            raise SystemExit(1)
 
         # Validate required fields for full update
         if "nodes" not in workflow_data:
-            formatter.output_error("Workflow definition missing required field 'nodes'")
-            raise SystemExit(1)
+            raise ValidationError("Workflow definition missing required field 'nodes'")
 
         # Strip ID from input - we use the CLI argument
         workflow_data.pop("id", None)
 
     # Execute update
-    try:
-        result = asyncio.run(
-            _update_workflow(
-                api_url=config.api_url,
-                api_key=config.api_key,
-                workflow_id=workflow_id,
-                workflow_data=workflow_data,
-                name_override=name_override,
-                activate=activate,
-                deactivate=deactivate,
-            )
+    result = asyncio.run(
+        _update_workflow(
+            api_url=config.api_url,
+            api_key=config.api_key,
+            workflow_id=workflow_id,
+            workflow_data=workflow_data,
+            name_override=name_override,
+            activate=activate,
+            deactivate=deactivate,
         )
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 400:
-            try:
-                error_data = e.response.json()
-                error_msg = error_data.get("message", str(e))
-            except (json.JSONDecodeError, KeyError):
-                error_msg = str(e)
-            formatter.output_error(f"Validation failed - {error_msg}")
-        elif e.response.status_code == 404:
-            formatter.output_error(f"Workflow '{workflow_id}' not found")
-        else:
-            formatter.output_error(f"API error: {e.response.status_code}")
-        raise SystemExit(1) from None
+    )
 
     # Output updated workflow
     formatter.output_dict(

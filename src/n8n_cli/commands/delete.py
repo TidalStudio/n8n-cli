@@ -6,11 +6,11 @@ import asyncio
 from typing import Any
 
 import click
-import httpx
 from rich.console import Console
 
 from n8n_cli.client import N8nClient
-from n8n_cli.config import ConfigurationError, require_config
+from n8n_cli.config import require_config
+from n8n_cli.exceptions import ValidationError
 
 console = Console()
 
@@ -39,66 +39,46 @@ def delete(workflow_id: str, confirm: bool, force: bool) -> None:
 
         n8n-cli delete 123 --force
     """
-    # Load config early
-    try:
-        config = require_config()
-    except ConfigurationError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise SystemExit(1) from None
+    # Load config (raises ConfigError if not configured)
+    config = require_config()
 
     assert config.api_url is not None
     assert config.api_key is not None
 
     # Check confirmation flags
     if not confirm and not force:
-        console.print(
-            "[red]Error:[/red] Deletion requires confirmation. "
+        raise ValidationError(
+            "Deletion requires confirmation. "
             "Use --confirm flag or --force for scripting."
         )
-        raise SystemExit(1)
 
     # Fetch workflow first to get name and check status
-    try:
-        workflow = asyncio.run(
-            _get_workflow(
-                api_url=config.api_url,
-                api_key=config.api_key,
-                workflow_id=workflow_id,
-            )
+    workflow = asyncio.run(
+        _get_workflow(
+            api_url=config.api_url,
+            api_key=config.api_key,
+            workflow_id=workflow_id,
         )
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            console.print(f"[red]Error:[/red] Workflow '{workflow_id}' not found")
-        else:
-            console.print(f"[red]Error:[/red] API error: {e.response.status_code}")
-        raise SystemExit(1) from None
+    )
 
     workflow_name = workflow.get("name", "Unknown")
     is_active = workflow.get("active", False)
 
     # Warn about active workflows
     if is_active and not force:
-        console.print(
-            f"[yellow]Warning:[/yellow] Workflow '{workflow_name}' is currently active."
+        raise ValidationError(
+            f"Workflow '{workflow_name}' is currently active. "
+            "Use --force to delete active workflows."
         )
-        console.print("Use --force to delete active workflows.")
-        raise SystemExit(1)
 
     # Execute deletion
-    try:
-        asyncio.run(
-            _delete_workflow(
-                api_url=config.api_url,
-                api_key=config.api_key,
-                workflow_id=workflow_id,
-            )
+    asyncio.run(
+        _delete_workflow(
+            api_url=config.api_url,
+            api_key=config.api_key,
+            workflow_id=workflow_id,
         )
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            console.print(f"[red]Error:[/red] Workflow '{workflow_id}' not found")
-        else:
-            console.print(f"[red]Error:[/red] API error: {e.response.status_code}")
-        raise SystemExit(1) from None
+    )
 
     console.print(f"Deleted workflow '{workflow_name}' (ID: {workflow_id})")
 

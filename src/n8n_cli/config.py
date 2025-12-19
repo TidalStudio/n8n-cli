@@ -7,6 +7,8 @@ import stat
 from dataclasses import dataclass
 from pathlib import Path
 
+from n8n_cli.exceptions import ConfigError
+
 # Constants
 DEFAULT_CONFIG_DIR = Path.home() / ".config" / "n8n-cli"
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / ".env"
@@ -14,8 +16,8 @@ ENV_API_URL = "N8N_API_URL"
 ENV_API_KEY = "N8N_API_KEY"
 
 
-class ConfigurationError(Exception):
-    """Raised when configuration is invalid or missing."""
+# Backward compatibility alias
+ConfigurationError = ConfigError
 
 
 @dataclass
@@ -129,11 +131,11 @@ def require_config() -> Config:
         Valid Config object.
 
     Raises:
-        ConfigurationError: If required configuration is missing.
+        ConfigError: If required configuration is missing.
     """
     config = load_config()
     if not config.is_configured():
-        raise ConfigurationError(
+        raise ConfigError(
             "n8n-cli is not configured. Run 'n8n-cli configure' to set up credentials, "
             f"or set {ENV_API_URL} and {ENV_API_KEY} environment variables."
         )

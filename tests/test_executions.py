@@ -216,15 +216,15 @@ class TestExecutionsCommand:
 
     def test_executions_requires_configuration(self, cli_runner: CliRunner) -> None:
         """Test that executions command fails when not configured."""
-        from n8n_cli.config import ConfigurationError
+        from n8n_cli.exceptions import ConfigError
 
         with patch(
             "n8n_cli.commands.executions.require_config",
-            side_effect=ConfigurationError("Not configured"),
+            side_effect=ConfigError("Not configured"),
         ):
-            result = cli_runner.invoke(executions)
+            result = cli_runner.invoke(cli, ["executions"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2  # ConfigError uses exit code 2
         assert "Error" in result.output
         assert "Not configured" in result.output
 

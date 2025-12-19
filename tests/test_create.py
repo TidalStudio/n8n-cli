@@ -6,7 +6,6 @@ import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 from click.testing import CliRunner
 
@@ -218,8 +217,8 @@ class TestCreateCommand:
         """Test that invalid JSON returns clear error message."""
         with patch("n8n_cli.commands.create.require_config", return_value=mock_config):
             result = cli_runner.invoke(
-                create,
-                ["--stdin"],
+                cli,
+                ["create", "--stdin"],
                 input="{ invalid json }",
             )
 
@@ -234,8 +233,8 @@ class TestCreateCommand:
 
         with patch("n8n_cli.commands.create.require_config", return_value=mock_config):
             result = cli_runner.invoke(
-                create,
-                ["--stdin"],
+                cli,
+                ["create", "--stdin"],
                 input=json.dumps(workflow_without_nodes),
             )
 
@@ -250,8 +249,8 @@ class TestCreateCommand:
 
         with patch("n8n_cli.commands.create.require_config", return_value=mock_config):
             result = cli_runner.invoke(
-                create,
-                ["--stdin"],
+                cli,
+                ["create", "--stdin"],
                 input=json.dumps(workflow_without_name),
             )
 
@@ -298,31 +297,24 @@ class TestCreateCommand:
         sample_workflow_input: dict,
     ) -> None:
         """Test that API validation errors (400) are handled properly."""
-        mock_response = httpx.Response(
-            400,
-            request=httpx.Request("POST", "http://test"),
-            json={"message": "Invalid node type"},
-        )
-        error = httpx.HTTPStatusError(
-            "Bad request", request=mock_response.request, response=mock_response
-        )
+        from n8n_cli.exceptions import ValidationError
 
         with (
             patch("n8n_cli.commands.create.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.create._create_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=ValidationError("Invalid node type"),
             ),
         ):
             result = cli_runner.invoke(
-                create,
-                ["--stdin"],
+                cli,
+                ["create", "--stdin"],
                 input=json.dumps(sample_workflow_input),
             )
 
         assert result.exit_code == 1
-        assert "Validation failed" in result.output
+        assert "Invalid node type" in result.output
 
     def test_create_conflict_error(
         self,
@@ -331,25 +323,19 @@ class TestCreateCommand:
         sample_workflow_input: dict,
     ) -> None:
         """Test that 409 conflict error shows appropriate message."""
-        mock_response = httpx.Response(
-            409,
-            request=httpx.Request("POST", "http://test"),
-        )
-        error = httpx.HTTPStatusError(
-            "Conflict", request=mock_response.request, response=mock_response
-        )
+        from n8n_cli.exceptions import ApiError
 
         with (
             patch("n8n_cli.commands.create.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.create._create_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=ApiError("Workflow already exists", 409),
             ),
         ):
             result = cli_runner.invoke(
-                create,
-                ["--stdin"],
+                cli,
+                ["create", "--stdin"],
                 input=json.dumps(sample_workflow_input),
             )
 
@@ -358,7 +344,7 @@ class TestCreateCommand:
 
     def test_create_requires_file_or_stdin(self, cli_runner: CliRunner) -> None:
         """Test that command fails when neither --file nor --stdin is provided."""
-        result = cli_runner.invoke(create, [])
+        result = cli_runner.invoke(cli, ["create"])
 
         assert result.exit_code == 1
         assert "Must specify either --file or --stdin" in result.output
@@ -372,8 +358,8 @@ class TestCreateCommand:
                 f.write("{}")
 
             result = cli_runner.invoke(
-                create,
-                ["--file", "workflow.json", "--stdin"],
+                cli,
+                ["create", "--file", "workflow.json", "--stdin"],
                 input="{}",
             )
 
@@ -382,21 +368,21 @@ class TestCreateCommand:
 
     def test_create_requires_configuration(self, cli_runner: CliRunner) -> None:
         """Test that create command fails when not configured."""
-        from n8n_cli.config import ConfigurationError
+        from n8n_cli.exceptions import ConfigError
 
         sample_input = {"name": "Test", "nodes": []}
 
         with patch(
             "n8n_cli.commands.create.require_config",
-            side_effect=ConfigurationError("Not configured"),
+            side_effect=ConfigError("Not configured"),
         ):
             result = cli_runner.invoke(
-                create,
-                ["--stdin"],
+                cli,
+                ["create", "--stdin"],
                 input=json.dumps(sample_input),
             )
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2  # ConfigError uses exit code 2
         assert "Error" in result.output
         assert "Not configured" in result.output
 
@@ -420,8 +406,8 @@ class TestCreateCommand:
         """Test that JSON arrays or primitives are rejected."""
         with patch("n8n_cli.commands.create.require_config", return_value=mock_config):
             result = cli_runner.invoke(
-                create,
-                ["--stdin"],
+                cli,
+                ["create", "--stdin"],
                 input="[1, 2, 3]",
             )
 

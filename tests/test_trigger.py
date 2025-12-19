@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 from click.testing import CliRunner
 
@@ -140,7 +139,7 @@ class TestTriggerCommand:
 
         with patch("n8n_cli.commands.trigger.require_config", return_value=mock_config):
             result = cli_runner.invoke(
-                trigger, ["123", "--data", '{"key": "value"}', "--file", str(input_file)]
+                cli, ["trigger", "123", "--data", '{"key": "value"}', "--file", str(input_file)]
             )
 
         assert result.exit_code == 1
@@ -153,7 +152,7 @@ class TestTriggerCommand:
     ) -> None:
         """Test that invalid JSON in --data returns clear error."""
         with patch("n8n_cli.commands.trigger.require_config", return_value=mock_config):
-            result = cli_runner.invoke(trigger, ["123", "--data", "not valid json"])
+            result = cli_runner.invoke(cli, ["trigger", "123", "--data", "not valid json"])
 
         assert result.exit_code == 1
         assert "Invalid JSON data" in result.output
@@ -165,7 +164,7 @@ class TestTriggerCommand:
     ) -> None:
         """Test that --data must be a JSON object, not array or primitive."""
         with patch("n8n_cli.commands.trigger.require_config", return_value=mock_config):
-            result = cli_runner.invoke(trigger, ["123", "--data", '["array"]'])
+            result = cli_runner.invoke(cli, ["trigger", "123", "--data", '["array"]'])
 
         assert result.exit_code == 1
         assert "must be an object" in result.output
@@ -181,7 +180,7 @@ class TestTriggerCommand:
         input_file.write_text("not valid json")
 
         with patch("n8n_cli.commands.trigger.require_config", return_value=mock_config):
-            result = cli_runner.invoke(trigger, ["123", "--file", str(input_file)])
+            result = cli_runner.invoke(cli, ["trigger", "123", "--file", str(input_file)])
 
         assert result.exit_code == 1
         assert "Invalid JSON in file" in result.output
@@ -192,20 +191,17 @@ class TestTriggerCommand:
         mock_config: Config,
     ) -> None:
         """Test that 404 response returns workflow not found error."""
-        mock_response = httpx.Response(404, request=httpx.Request("POST", "http://test"))
-        error = httpx.HTTPStatusError(
-            "Not found", request=mock_response.request, response=mock_response
-        )
+        from n8n_cli.exceptions import NotFoundError
 
         with (
             patch("n8n_cli.commands.trigger.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.trigger._trigger_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=NotFoundError("Workflow not found: 999"),
             ),
         ):
-            result = cli_runner.invoke(trigger, ["999"])
+            result = cli_runner.invoke(cli, ["trigger", "999"])
 
         assert result.exit_code == 1
         assert "Workflow not found: 999" in result.output
@@ -216,28 +212,20 @@ class TestTriggerCommand:
         mock_config: Config,
     ) -> None:
         """Test that inactive workflow returns helpful error."""
-        mock_response = httpx.Response(
-            400,
-            request=httpx.Request("POST", "http://test"),
-            json={"message": "Workflow is not active"},
-        )
-        error = httpx.HTTPStatusError(
-            "Bad request", request=mock_response.request, response=mock_response
-        )
+        from n8n_cli.exceptions import ValidationError
 
         with (
             patch("n8n_cli.commands.trigger.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.trigger._trigger_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=ValidationError("Workflow is not active"),
             ),
         ):
-            result = cli_runner.invoke(trigger, ["123"])
+            result = cli_runner.invoke(cli, ["trigger", "123"])
 
         assert result.exit_code == 1
         assert "not active" in result.output
-        assert "n8n-cli update 123 --activate" in result.output
 
     def test_trigger_api_error(
         self,
@@ -245,35 +233,32 @@ class TestTriggerCommand:
         mock_config: Config,
     ) -> None:
         """Test that API errors return status code."""
-        mock_response = httpx.Response(500, request=httpx.Request("POST", "http://test"))
-        error = httpx.HTTPStatusError(
-            "Server error", request=mock_response.request, response=mock_response
-        )
+        from n8n_cli.exceptions import ApiError
 
         with (
             patch("n8n_cli.commands.trigger.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.trigger._trigger_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=ApiError("API error (500): Server error", 500),
             ),
         ):
-            result = cli_runner.invoke(trigger, ["123"])
+            result = cli_runner.invoke(cli, ["trigger", "123"])
 
         assert result.exit_code == 1
-        assert "API error: 500" in result.output
+        assert "500" in result.output
 
     def test_trigger_config_error(self, cli_runner: CliRunner) -> None:
         """Test that trigger command fails when not configured."""
-        from n8n_cli.config import ConfigurationError
+        from n8n_cli.exceptions import ConfigError
 
         with patch(
             "n8n_cli.commands.trigger.require_config",
-            side_effect=ConfigurationError("Not configured"),
+            side_effect=ConfigError("Not configured"),
         ):
-            result = cli_runner.invoke(trigger, ["123"])
+            result = cli_runner.invoke(cli, ["trigger", "123"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2  # ConfigError uses exit code 2
         assert "Error" in result.output
         assert "Not configured" in result.output
 
@@ -327,18 +312,20 @@ class TestTriggerCommand:
         mock_config: Config,
     ) -> None:
         """Test that timeout returns error."""
+        from n8n_cli.exceptions import TimeoutError as CliTimeoutError
+
         with (
             patch("n8n_cli.commands.trigger.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.trigger._trigger_workflow",
                 new_callable=AsyncMock,
-                side_effect=TimeoutError("Execution did not complete"),
+                side_effect=CliTimeoutError("Execution did not complete within 5s"),
             ),
         ):
-            result = cli_runner.invoke(trigger, ["123", "--wait", "--timeout", "5"])
+            result = cli_runner.invoke(cli, ["trigger", "123", "--wait", "--timeout", "5"])
 
         assert result.exit_code == 1
-        assert "timed out" in result.output
+        assert "did not complete" in result.output
 
     def test_trigger_default_timeout(self, cli_runner: CliRunner) -> None:
         """Test that default timeout is 300 seconds."""

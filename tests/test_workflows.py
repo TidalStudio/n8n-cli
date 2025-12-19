@@ -126,7 +126,7 @@ class TestWorkflowsCommand:
     ) -> None:
         """Test that --active and --inactive cannot be used together."""
         with patch("n8n_cli.commands.workflows.require_config", return_value=mock_config):
-            result = cli_runner.invoke(workflows, ["--active", "--inactive"])
+            result = cli_runner.invoke(cli, ["workflows", "--active", "--inactive"])
 
         assert result.exit_code == 1
         assert "Cannot use both --active and --inactive" in result.output
@@ -196,15 +196,15 @@ class TestWorkflowsCommand:
 
     def test_workflows_requires_configuration(self, cli_runner: CliRunner) -> None:
         """Test that workflows command fails when not configured."""
-        from n8n_cli.config import ConfigurationError
+        from n8n_cli.exceptions import ConfigError
 
         with patch(
             "n8n_cli.commands.workflows.require_config",
-            side_effect=ConfigurationError("Not configured"),
+            side_effect=ConfigError("Not configured"),
         ):
-            result = cli_runner.invoke(workflows)
+            result = cli_runner.invoke(cli, ["workflows"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2  # ConfigError uses exit code 2
         assert "Error" in result.output
         assert "Not configured" in result.output
 

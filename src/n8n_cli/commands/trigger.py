@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import Any
 
 import click
-import httpx
 
 from n8n_cli.client import N8nClient
-from n8n_cli.config import ConfigurationError, require_config
+from n8n_cli.config import require_config
+from n8n_cli.exceptions import TimeoutError as CliTimeoutError
+from n8n_cli.exceptions import ValidationError
 from n8n_cli.output import STATUS_COLORS, format_datetime, get_formatter_from_context
 
 # Terminal execution statuses
@@ -78,8 +79,7 @@ def trigger(
 
     # Validate mutual exclusivity
     if data_json and file_path:
-        formatter.output_error("Cannot use both --data and --file")
-        raise SystemExit(1)
+        raise ValidationError("Cannot use both --data and --file")
 
     # Parse input data
     input_data: dict[str, Any] | None = None
@@ -88,84 +88,50 @@ def trigger(
         try:
             parsed = json.loads(data_json)
             if not isinstance(parsed, dict):
-                formatter.output_error(
+                raise ValidationError(
                     "Invalid JSON data - must be an object, not a list or primitive"
                 )
-                raise SystemExit(1)
             input_data = parsed
         except json.JSONDecodeError as e:
-            formatter.output_error(
+            raise ValidationError(
                 f"Invalid JSON data - {e.msg} at line {e.lineno}, column {e.colno}"
-            )
-            raise SystemExit(1) from None
+            ) from e
 
     if file_path:
         try:
             json_content = file_path.read_text(encoding="utf-8")
         except OSError as e:
-            formatter.output_error(f"Failed to read file: {e}")
-            raise SystemExit(1) from None
+            raise ValidationError(f"Failed to read file: {e}") from e
 
         try:
             parsed = json.loads(json_content)
             if not isinstance(parsed, dict):
-                formatter.output_error(
+                raise ValidationError(
                     "Invalid JSON in file - must be an object, not a list or primitive"
                 )
-                raise SystemExit(1)
             input_data = parsed
         except json.JSONDecodeError as e:
-            formatter.output_error(
+            raise ValidationError(
                 f"Invalid JSON in file - {e.msg} at line {e.lineno}, column {e.colno}"
-            )
-            raise SystemExit(1) from None
+            ) from e
 
-    # Load config
-    try:
-        config = require_config()
-    except ConfigurationError as e:
-        formatter.output_error(str(e))
-        raise SystemExit(1) from None
+    # Load config (raises ConfigError if not configured)
+    config = require_config()
 
     assert config.api_url is not None
     assert config.api_key is not None
 
     # Execute workflow
-    try:
-        result = asyncio.run(
-            _trigger_workflow(
-                config.api_url,
-                config.api_key,
-                workflow_id,
-                input_data,
-                wait_for_completion,
-                timeout,
-            )
+    result = asyncio.run(
+        _trigger_workflow(
+            config.api_url,
+            config.api_key,
+            workflow_id,
+            input_data,
+            wait_for_completion,
+            timeout,
         )
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            formatter.output_error(f"Workflow not found: {workflow_id}")
-        elif e.response.status_code == 400:
-            # Try to extract error message
-            try:
-                error_data = e.response.json()
-                error_msg = error_data.get("message", str(e))
-            except (json.JSONDecodeError, KeyError):
-                error_msg = str(e)
-            # Check if it's an inactive workflow error
-            if "active" in error_msg.lower() or "inactive" in error_msg.lower():
-                formatter.output_error(
-                    f"Workflow is not active. "
-                    f"Enable with: n8n-cli update {workflow_id} --activate"
-                )
-            else:
-                formatter.output_error(error_msg)
-        else:
-            formatter.output_error(f"API error: {e.response.status_code}")
-        raise SystemExit(1) from None
-    except TimeoutError:
-        formatter.output_error(f"Execution timed out after {timeout} seconds")
-        raise SystemExit(1) from None
+    )
 
     def format_status(s: str) -> str:
         """Format status with color."""
@@ -236,7 +202,7 @@ async def _trigger_workflow(
         while True:
             elapsed = time.monotonic() - start_time
             if elapsed >= timeout:
-                raise TimeoutError(f"Execution did not complete within {timeout}s")
+                raise CliTimeoutError(f"Execution did not complete within {timeout}s")
 
             execution = await client.get_execution(str(execution_id))
             status = execution.get("status", "").lower()

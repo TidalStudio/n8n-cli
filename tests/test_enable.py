@@ -6,7 +6,6 @@ import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 from click.testing import CliRunner
 
@@ -100,46 +99,36 @@ class TestEnableCommand:
         self, cli_runner: CliRunner, mock_config: Config
     ) -> None:
         """Test that 404 response returns clear error message."""
-        mock_response = httpx.Response(404, request=httpx.Request("PATCH", "http://test"))
-        error = httpx.HTTPStatusError(
-            "Not found", request=mock_response.request, response=mock_response
-        )
+        from n8n_cli.exceptions import NotFoundError
 
         with (
             patch("n8n_cli.commands.enable.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.enable._enable_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=NotFoundError("Workflow not found: 999"),
             ),
         ):
-            result = cli_runner.invoke(enable, ["999"])
+            result = cli_runner.invoke(cli, ["enable", "999"])
 
         assert result.exit_code == 1
-        assert "Workflow '999' not found" in result.output
+        assert "Workflow not found: 999" in result.output
 
     def test_enable_workflow_with_errors(
         self, cli_runner: CliRunner, mock_config: Config
     ) -> None:
         """Test that 400 response shows error message from API."""
-        mock_response = httpx.Response(
-            400,
-            request=httpx.Request("PATCH", "http://test"),
-            json={"message": "Workflow has validation errors"},
-        )
-        error = httpx.HTTPStatusError(
-            "Bad request", request=mock_response.request, response=mock_response
-        )
+        from n8n_cli.exceptions import ValidationError
 
         with (
             patch("n8n_cli.commands.enable.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.enable._enable_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=ValidationError("Workflow has validation errors"),
             ),
         ):
-            result = cli_runner.invoke(enable, ["123"])
+            result = cli_runner.invoke(cli, ["enable", "123"])
 
         assert result.exit_code == 1
         assert "Workflow has validation errors" in result.output
@@ -148,35 +137,32 @@ class TestEnableCommand:
         self, cli_runner: CliRunner, mock_config: Config
     ) -> None:
         """Test that API errors return status code."""
-        mock_response = httpx.Response(500, request=httpx.Request("PATCH", "http://test"))
-        error = httpx.HTTPStatusError(
-            "Server error", request=mock_response.request, response=mock_response
-        )
+        from n8n_cli.exceptions import ApiError
 
         with (
             patch("n8n_cli.commands.enable.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.enable._enable_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=ApiError("API error (500): Server error", 500),
             ),
         ):
-            result = cli_runner.invoke(enable, ["123"])
+            result = cli_runner.invoke(cli, ["enable", "123"])
 
         assert result.exit_code == 1
-        assert "API error: 500" in result.output
+        assert "500" in result.output
 
     def test_enable_config_error(self, cli_runner: CliRunner) -> None:
         """Test that enable command fails when not configured."""
-        from n8n_cli.config import ConfigurationError
+        from n8n_cli.exceptions import ConfigError
 
         with patch(
             "n8n_cli.commands.enable.require_config",
-            side_effect=ConfigurationError("Not configured"),
+            side_effect=ConfigError("Not configured"),
         ):
-            result = cli_runner.invoke(enable, ["123"])
+            result = cli_runner.invoke(cli, ["enable", "123"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2  # ConfigError uses exit code 2
         assert "Error" in result.output
         assert "Not configured" in result.output
 

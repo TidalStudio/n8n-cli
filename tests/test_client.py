@@ -116,12 +116,16 @@ class TestGetWorkflow:
 
     @pytest.mark.asyncio
     async def test_get_workflow_raises_on_404(self) -> None:
-        """Test get_workflow raises HTTPStatusError on 404."""
+        """Test get_workflow raises NotFoundError on 404."""
         from unittest.mock import AsyncMock, MagicMock
 
         import httpx
 
+        from n8n_cli.exceptions import NotFoundError
+
         mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.json.return_value = {}
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Not found",
             request=httpx.Request("GET", "http://test"),
@@ -130,7 +134,7 @@ class TestGetWorkflow:
 
         async with N8nClient(base_url="http://test", api_key="key") as client:
             client._client.get = AsyncMock(return_value=mock_response)
-            with pytest.raises(httpx.HTTPStatusError):
+            with pytest.raises(NotFoundError, match="Workflow not found: 999"):
                 await client.get_workflow("999")
 
 
@@ -197,21 +201,32 @@ class TestCreateWorkflow:
 
     @pytest.mark.asyncio
     async def test_create_workflow_raises_on_400(self) -> None:
-        """Test create_workflow raises HTTPStatusError on validation error."""
+        """Test create_workflow raises ValidationError on validation error."""
         from unittest.mock import AsyncMock, MagicMock
 
         import httpx
 
+        from n8n_cli.exceptions import ValidationError
+
+        # Create a proper response mock that works with our exception translation
         mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.json.return_value = {"message": "Invalid workflow"}
+
+        # The HTTPStatusError needs a response with proper status_code and json
+        error_response = MagicMock()
+        error_response.status_code = 400
+        error_response.json.return_value = {"message": "Invalid workflow"}
+
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Bad request",
             request=httpx.Request("POST", "http://test"),
-            response=httpx.Response(400),
+            response=error_response,
         )
 
         async with N8nClient(base_url="http://test", api_key="key") as client:
             client._client.post = AsyncMock(return_value=mock_response)
-            with pytest.raises(httpx.HTTPStatusError):
+            with pytest.raises(ValidationError, match="Invalid workflow"):
                 await client.create_workflow({"name": "Test", "nodes": []})
 
 
@@ -247,12 +262,16 @@ class TestActivateWorkflow:
 
     @pytest.mark.asyncio
     async def test_activate_workflow_raises_on_404(self) -> None:
-        """Test activate_workflow raises HTTPStatusError on 404."""
+        """Test activate_workflow raises NotFoundError on 404."""
         from unittest.mock import AsyncMock, MagicMock
 
         import httpx
 
+        from n8n_cli.exceptions import NotFoundError
+
         mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.json.return_value = {}
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Not found",
             request=httpx.Request("PATCH", "http://test"),
@@ -261,7 +280,7 @@ class TestActivateWorkflow:
 
         async with N8nClient(base_url="http://test", api_key="key") as client:
             client._client.patch = AsyncMock(return_value=mock_response)
-            with pytest.raises(httpx.HTTPStatusError):
+            with pytest.raises(NotFoundError, match="Workflow not found: 999"):
                 await client.activate_workflow("999")
 
 
@@ -285,12 +304,16 @@ class TestDeleteWorkflow:
 
     @pytest.mark.asyncio
     async def test_delete_workflow_raises_on_404(self) -> None:
-        """Test delete_workflow raises HTTPStatusError on 404."""
+        """Test delete_workflow raises NotFoundError on 404."""
         from unittest.mock import AsyncMock, MagicMock
 
         import httpx
 
+        from n8n_cli.exceptions import NotFoundError
+
         mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.json.return_value = {}
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Not found",
             request=httpx.Request("DELETE", "http://test"),
@@ -299,5 +322,5 @@ class TestDeleteWorkflow:
 
         async with N8nClient(base_url="http://test", api_key="key") as client:
             client._client.delete = AsyncMock(return_value=mock_response)
-            with pytest.raises(httpx.HTTPStatusError):
+            with pytest.raises(NotFoundError, match="Workflow not found: 999"):
                 await client.delete_workflow("999")

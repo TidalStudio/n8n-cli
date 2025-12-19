@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -88,6 +89,7 @@ class OutputFormatter:
         self.no_color = no_color
         # Let Rich auto-detect terminal; only force no_color if explicitly requested
         self.console = Console(no_color=no_color)
+        self.stderr_console = Console(file=sys.stderr, no_color=no_color)
 
     def output_list(
         self,
@@ -188,12 +190,12 @@ class OutputFormatter:
         self.console.print(table)
 
     def output_error(self, message: str) -> None:
-        """Output an error message.
+        """Output an error message to stderr.
 
         Args:
             message: The error message to display.
         """
-        self.console.print(f"[red]Error:[/red] {message}")
+        self.stderr_console.print(f"[red]Error:[/red] {message}")
 
     def output_success(self, message: str) -> None:
         """Output a success message.

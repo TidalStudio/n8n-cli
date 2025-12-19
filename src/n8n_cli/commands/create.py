@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any
 
 import click
-import httpx
 
 from n8n_cli.client import N8nClient
-from n8n_cli.config import ConfigurationError, require_config
+from n8n_cli.config import require_config
+from n8n_cli.exceptions import ValidationError
 from n8n_cli.output import format_datetime, get_formatter_from_context
 
 
@@ -67,12 +67,10 @@ def create(
 
     # Validate input source
     if not file_path and not use_stdin:
-        formatter.output_error("Must specify either --file or --stdin")
-        raise SystemExit(1)
+        raise ValidationError("Must specify either --file or --stdin")
 
     if file_path and use_stdin:
-        formatter.output_error("Cannot use both --file and --stdin")
-        raise SystemExit(1)
+        raise ValidationError("Cannot use both --file and --stdin")
 
     # Read JSON content
     try:
@@ -80,66 +78,46 @@ def create(
             file_path.read_text(encoding="utf-8") if file_path else sys.stdin.read()
         )
     except OSError as e:
-        formatter.output_error(f"Failed to read input: {e}")
-        raise SystemExit(1) from None
+        raise ValidationError(f"Failed to read input: {e}") from e
 
     # Parse JSON
     try:
         workflow_data = json.loads(json_content)
     except json.JSONDecodeError as e:
-        formatter.output_error(f"Invalid JSON - {e.msg} at line {e.lineno}, column {e.colno}")
-        raise SystemExit(1) from None
+        raise ValidationError(
+            f"Invalid JSON - {e.msg} at line {e.lineno}, column {e.colno}"
+        ) from e
 
     if not isinstance(workflow_data, dict):
-        formatter.output_error("Invalid JSON - workflow must be an object, not a list or primitive")
-        raise SystemExit(1)
+        raise ValidationError(
+            "Invalid JSON - workflow must be an object, not a list or primitive"
+        )
 
     # Validate required fields
     if "nodes" not in workflow_data:
-        formatter.output_error("Workflow definition missing required field 'nodes'")
-        raise SystemExit(1)
+        raise ValidationError("Workflow definition missing required field 'nodes'")
 
     # Apply name override or validate name exists
     if name_override:
         workflow_data["name"] = name_override
     elif "name" not in workflow_data:
-        formatter.output_error("Workflow definition missing 'name'. Use --name to specify.")
-        raise SystemExit(1)
+        raise ValidationError("Workflow definition missing 'name'. Use --name to specify.")
 
-    # Load config
-    try:
-        config = require_config()
-    except ConfigurationError as e:
-        formatter.output_error(str(e))
-        raise SystemExit(1) from None
+    # Load config (raises ConfigError if not configured)
+    config = require_config()
 
     assert config.api_url is not None
     assert config.api_key is not None
 
     # Create workflow
-    try:
-        result = asyncio.run(
-            _create_workflow(
-                config.api_url,
-                config.api_key,
-                workflow_data,
-                activate,
-            )
+    result = asyncio.run(
+        _create_workflow(
+            config.api_url,
+            config.api_key,
+            workflow_data,
+            activate,
         )
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 400:
-            # Try to extract error message from response
-            try:
-                error_data = e.response.json()
-                error_msg = error_data.get("message", str(e))
-            except (json.JSONDecodeError, KeyError):
-                error_msg = str(e)
-            formatter.output_error(f"Validation failed - {error_msg}")
-        elif e.response.status_code == 409:
-            formatter.output_error("Workflow with this name already exists")
-        else:
-            formatter.output_error(f"API error: {e.response.status_code}")
-        raise SystemExit(1) from None
+    )
 
     # Output created workflow
     formatter.output_dict(

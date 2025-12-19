@@ -6,7 +6,6 @@ import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 from click.testing import CliRunner
 
@@ -112,18 +111,17 @@ class TestWorkflowCommand:
         self, cli_runner: CliRunner, mock_config: Config
     ) -> None:
         """Test that 404 response returns clear error message."""
-        mock_response = httpx.Response(404, request=httpx.Request("GET", "http://test"))
-        error = httpx.HTTPStatusError("Not found", request=mock_response.request, response=mock_response)
+        from n8n_cli.exceptions import NotFoundError
 
         with (
             patch("n8n_cli.commands.workflow.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.workflow._fetch_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=NotFoundError("Workflow not found: 999"),
             ),
         ):
-            result = cli_runner.invoke(workflow, ["999"])
+            result = cli_runner.invoke(cli, ["workflow", "999"])
 
         assert result.exit_code == 1
         assert "Workflow not found: 999" in result.output
@@ -132,33 +130,32 @@ class TestWorkflowCommand:
         self, cli_runner: CliRunner, mock_config: Config
     ) -> None:
         """Test that API errors return status code."""
-        mock_response = httpx.Response(500, request=httpx.Request("GET", "http://test"))
-        error = httpx.HTTPStatusError("Server error", request=mock_response.request, response=mock_response)
+        from n8n_cli.exceptions import ApiError
 
         with (
             patch("n8n_cli.commands.workflow.require_config", return_value=mock_config),
             patch(
                 "n8n_cli.commands.workflow._fetch_workflow",
                 new_callable=AsyncMock,
-                side_effect=error,
+                side_effect=ApiError("API error (500): Server error", 500),
             ),
         ):
-            result = cli_runner.invoke(workflow, ["1"])
+            result = cli_runner.invoke(cli, ["workflow", "1"])
 
         assert result.exit_code == 1
-        assert "API error: 500" in result.output
+        assert "500" in result.output
 
     def test_workflow_requires_configuration(self, cli_runner: CliRunner) -> None:
         """Test that workflow command fails when not configured."""
-        from n8n_cli.config import ConfigurationError
+        from n8n_cli.exceptions import ConfigError
 
         with patch(
             "n8n_cli.commands.workflow.require_config",
-            side_effect=ConfigurationError("Not configured"),
+            side_effect=ConfigError("Not configured"),
         ):
-            result = cli_runner.invoke(workflow, ["1"])
+            result = cli_runner.invoke(cli, ["workflow", "1"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2  # ConfigError uses exit code 2
         assert "Error" in result.output
         assert "Not configured" in result.output
 

@@ -8,7 +8,7 @@ from typing import Any
 import click
 
 from n8n_cli.client import N8nClient
-from n8n_cli.config import ConfigurationError, require_config
+from n8n_cli.config import require_config
 from n8n_cli.output import STATUS_COLORS, format_datetime, get_formatter_from_context
 
 VALID_STATUSES = ["success", "error", "running", "waiting", "canceled"]
@@ -35,12 +35,8 @@ def executions(
     """
     formatter = get_formatter_from_context(ctx)
 
-    # Load config
-    try:
-        config = require_config()
-    except ConfigurationError as e:
-        formatter.output_error(str(e))
-        raise SystemExit(1) from None
+    # Load config (raises ConfigError if not configured)
+    config = require_config()
 
     assert config.api_url is not None
     assert config.api_key is not None

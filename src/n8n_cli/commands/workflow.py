@@ -6,10 +6,9 @@ import asyncio
 from typing import Any
 
 import click
-import httpx
 
 from n8n_cli.client import N8nClient
-from n8n_cli.config import ConfigurationError, require_config
+from n8n_cli.config import require_config
 from n8n_cli.output import format_datetime, get_formatter_from_context
 
 
@@ -23,31 +22,20 @@ def workflow(ctx: click.Context, workflow_id: str) -> None:
     """
     formatter = get_formatter_from_context(ctx)
 
-    # Load config
-    try:
-        config = require_config()
-    except ConfigurationError as e:
-        formatter.output_error(str(e))
-        raise SystemExit(1) from None
+    # Load config (raises ConfigError if not configured)
+    config = require_config()
 
     # Fetch workflow (require_config guarantees these are not None)
     assert config.api_url is not None
     assert config.api_key is not None
 
-    try:
-        result = asyncio.run(
-            _fetch_workflow(
-                config.api_url,
-                config.api_key,
-                workflow_id,
-            )
+    result = asyncio.run(
+        _fetch_workflow(
+            config.api_url,
+            config.api_key,
+            workflow_id,
         )
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            formatter.output_error(f"Workflow not found: {workflow_id}")
-        else:
-            formatter.output_error(f"API error: {e.response.status_code}")
-        raise SystemExit(1) from None
+    )
 
     # Output workflow details
     formatter.output_dict(

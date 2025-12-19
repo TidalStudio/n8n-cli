@@ -8,7 +8,8 @@ from typing import Any
 import click
 
 from n8n_cli.client import N8nClient
-from n8n_cli.config import ConfigurationError, require_config
+from n8n_cli.config import require_config
+from n8n_cli.exceptions import ValidationError
 from n8n_cli.output import format_datetime, get_formatter_from_context, truncate
 
 
@@ -26,15 +27,10 @@ def workflows(ctx: click.Context, active: bool, inactive: bool, tags: tuple[str,
 
     # Validate mutually exclusive flags
     if active and inactive:
-        formatter.output_error("Cannot use both --active and --inactive")
-        raise SystemExit(1)
+        raise ValidationError("Cannot use both --active and --inactive")
 
-    # Load config
-    try:
-        config = require_config()
-    except ConfigurationError as e:
-        formatter.output_error(str(e))
-        raise SystemExit(1) from None
+    # Load config (raises ConfigError if not configured)
+    config = require_config()
 
     # Determine active filter
     active_filter: bool | None = None

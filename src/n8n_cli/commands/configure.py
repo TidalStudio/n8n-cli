@@ -10,6 +10,7 @@ from rich.panel import Panel
 
 from n8n_cli.client import N8nClient
 from n8n_cli.config import load_config, save_config
+from n8n_cli.exceptions import ValidationError
 
 console = Console()
 
@@ -84,12 +85,10 @@ def configure(api_url: str | None, api_key: str | None) -> None:
 
     # Validate inputs
     if not api_url:
-        console.print("[red]Error:[/red] API URL is required")
-        raise SystemExit(1)
+        raise ValidationError("API URL is required")
 
     if not api_key:
-        console.print("[red]Error:[/red] API key is required")
-        raise SystemExit(1)
+        raise ValidationError("API key is required")
 
     # Normalize URL
     api_url = api_url.rstrip("/")
