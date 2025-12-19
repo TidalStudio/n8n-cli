@@ -198,3 +198,49 @@ class N8nClient:
         """
         response = await self.client.delete(f"/api/v1/workflows/{workflow_id}")
         response.raise_for_status()
+
+    async def execute_workflow(
+        self,
+        workflow_id: str,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Execute a workflow by ID.
+
+        Args:
+            workflow_id: The workflow ID to execute.
+            data: Optional input data to pass to the workflow.
+
+        Returns:
+            Execution info with executionId field.
+
+        Raises:
+            httpx.HTTPStatusError: If workflow not found (404), inactive (400),
+                or other API error.
+        """
+        body: dict[str, Any] = {}
+        if data is not None:
+            body["inputData"] = data
+        response = await self.client.post(
+            f"/api/v1/workflows/{workflow_id}/execute",
+            json=body,
+        )
+        response.raise_for_status()
+        result: dict[str, Any] = response.json()
+        return result
+
+    async def get_execution(self, execution_id: str) -> dict[str, Any]:
+        """Get execution status and data.
+
+        Args:
+            execution_id: The execution ID to fetch.
+
+        Returns:
+            Execution details including status and output data.
+
+        Raises:
+            httpx.HTTPStatusError: If execution not found (404) or other API error.
+        """
+        response = await self.client.get(f"/api/v1/executions/{execution_id}")
+        response.raise_for_status()
+        result: dict[str, Any] = response.json()
+        return result
