@@ -180,27 +180,29 @@ def update_node(
     )
 
 
-# Fields that are read-only and should not be sent in update requests
-READONLY_WORKFLOW_FIELDS = {
-    "id",
-    "createdAt",
-    "updatedAt",
-    "versionId",
-    "isArchived",
-    "description",  # n8n API rejects this on some versions
+# Fields that the n8n API accepts for workflow updates (whitelist approach)
+# All other fields returned by GET are read-only and will cause 400 errors
+WRITABLE_WORKFLOW_FIELDS = {
+    "name",
+    "nodes",
+    "connections",
+    "settings",
+    "staticData",
+    "pinData",
+    "active",
 }
 
 
-def strip_readonly_fields(workflow: dict[str, Any]) -> dict[str, Any]:
-    """Remove read-only fields that n8n API doesn't accept on update.
+def extract_writable_fields(workflow: dict[str, Any]) -> dict[str, Any]:
+    """Extract only the fields that n8n API accepts for workflow updates.
 
     Args:
-        workflow: The workflow dictionary.
+        workflow: The workflow dictionary from GET response.
 
     Returns:
-        A new dictionary without the read-only fields.
+        A new dictionary with only writable fields.
     """
-    return {k: v for k, v in workflow.items() if k not in READONLY_WORKFLOW_FIELDS}
+    return {k: v for k, v in workflow.items() if k in WRITABLE_WORKFLOW_FIELDS}
 
 
 async def _update_node(
@@ -248,8 +250,8 @@ async def _update_node(
         # Update the parameter
         set_nested_param(node["parameters"], param_path, value)
 
-        # Strip read-only fields before sending update
-        workflow_payload = strip_readonly_fields(workflow)
+        # Extract only writable fields before sending update
+        workflow_payload = extract_writable_fields(workflow)
 
         # Push updated workflow
         return await client.update_workflow(workflow_id, workflow_payload)

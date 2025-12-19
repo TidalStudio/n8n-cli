@@ -10,10 +10,10 @@ import pytest
 from click.testing import CliRunner
 
 from n8n_cli.commands.update_node import (
+    extract_writable_fields,
     find_node,
     parse_value,
     set_nested_param,
-    strip_readonly_fields,
     update_node,
 )
 from n8n_cli.config import Config
@@ -148,31 +148,34 @@ class TestParseValue:
         assert parse_value('"hello"') == "hello"
 
 
-class TestStripReadonlyFields:
-    """Tests for strip_readonly_fields helper function."""
+class TestExtractWritableFields:
+    """Tests for extract_writable_fields helper function."""
 
-    def test_strips_id(self) -> None:
-        """Test that id field is stripped."""
-        workflow = {"id": "abc123", "name": "Test", "nodes": []}
-        result = strip_readonly_fields(workflow)
-        assert "id" not in result
-        assert result["name"] == "Test"
-
-    def test_strips_timestamps(self) -> None:
-        """Test that createdAt and updatedAt are stripped."""
+    def test_extracts_writable_fields(self) -> None:
+        """Test that only writable fields are extracted."""
         workflow = {
+            "id": "abc123",
             "name": "Test",
-            "createdAt": "2024-01-01T00:00:00Z",
-            "updatedAt": "2024-01-02T00:00:00Z",
             "nodes": [],
+            "connections": {},
+            "active": True,
+            "settings": {},
+            "staticData": None,
+            "pinData": {},
         }
-        result = strip_readonly_fields(workflow)
-        assert "createdAt" not in result
-        assert "updatedAt" not in result
-        assert result["name"] == "Test"
+        result = extract_writable_fields(workflow)
+        assert result == {
+            "name": "Test",
+            "nodes": [],
+            "connections": {},
+            "active": True,
+            "settings": {},
+            "staticData": None,
+            "pinData": {},
+        }
 
-    def test_strips_all_readonly_fields(self) -> None:
-        """Test that all readonly fields are stripped."""
+    def test_excludes_readonly_fields(self) -> None:
+        """Test that readonly fields are excluded."""
         workflow = {
             "id": "abc123",
             "name": "Test",
@@ -184,15 +187,30 @@ class TestStripReadonlyFields:
             "nodes": [],
             "connections": {},
             "active": True,
+            "meta": {},
+            "tags": [],
+            "shared": [],
+            "triggerCount": 5,
+            "activeVersionId": "v1",
+            "versionCounter": 3,
+            "activeVersion": {},
         }
-        result = strip_readonly_fields(workflow)
+        result = extract_writable_fields(workflow)
+        # Should only have writable fields
         assert "id" not in result
         assert "createdAt" not in result
         assert "updatedAt" not in result
         assert "versionId" not in result
         assert "isArchived" not in result
         assert "description" not in result
-        # These should remain
+        assert "meta" not in result
+        assert "tags" not in result
+        assert "shared" not in result
+        assert "triggerCount" not in result
+        assert "activeVersionId" not in result
+        assert "versionCounter" not in result
+        assert "activeVersion" not in result
+        # Should have writable fields
         assert result["name"] == "Test"
         assert result["nodes"] == []
         assert result["connections"] == {}
@@ -206,7 +224,7 @@ class TestStripReadonlyFields:
             "nodes": [{"id": "node1", "name": "Node 1"}],
             "connections": {"Node 1": {}},
         }
-        result = strip_readonly_fields(workflow)
+        result = extract_writable_fields(workflow)
         assert result["nodes"] == [{"id": "node1", "name": "Node 1"}]
         assert result["connections"] == {"Node 1": {}}
 
