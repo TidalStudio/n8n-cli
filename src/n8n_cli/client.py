@@ -257,8 +257,24 @@ class N8nClient:
             ConnectionError: If cannot connect to n8n.
             ApiError: For other API errors.
         """
+        # Strip fields that the n8n API doesn't accept on create
+        # These fields are often present in exported workflow JSON files
+        disallowed_fields = {
+            "id",
+            "staticData",
+            "tags",
+            "triggerCount",
+            "pinData",
+            "versionId",
+            "createdAt",
+            "updatedAt",
+            "homeProject",
+            "sharedWithProjects",
+        }
+        clean_data = {k: v for k, v in workflow_data.items() if k not in disallowed_fields}
+
         try:
-            response = await self.client.post("/api/v1/workflows", json=workflow_data)
+            response = await self.client.post("/api/v1/workflows", json=clean_data)
             response.raise_for_status()
             result: dict[str, Any] = response.json()
             return result
