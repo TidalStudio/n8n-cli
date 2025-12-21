@@ -506,3 +506,105 @@ class N8nClient:
         except httpx.HTTPError as e:
             _translate_connection_error(e, self.base_url)
             raise
+
+    async def get_credentials(
+        self,
+        credential_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch credentials from n8n instance.
+
+        Args:
+            credential_type: Filter by credential type (e.g., "httpBasicAuth").
+
+        Returns:
+            List of credential dictionaries.
+
+        Raises:
+            AuthenticationError: If API key is invalid (401).
+            ConnectionError: If cannot connect to n8n.
+            ApiError: For other API errors.
+        """
+        try:
+            response = await self.client.get("/api/v1/credentials")
+            response.raise_for_status()
+            credentials: list[dict[str, Any]] = response.json().get("data", [])
+
+            # Apply client-side filtering by type
+            if credential_type:
+                credentials = [
+                    c for c in credentials if c.get("type") == credential_type
+                ]
+
+            return credentials
+        except httpx.HTTPStatusError as e:
+            _translate_http_error(e, "Credentials")
+            raise
+        except httpx.HTTPError as e:
+            _translate_connection_error(e, self.base_url)
+            raise
+
+    async def get_credential(self, credential_id: str) -> dict[str, Any]:
+        """Fetch a single credential by ID.
+
+        Args:
+            credential_id: The credential ID.
+
+        Returns:
+            Credential details including data fields.
+
+        Raises:
+            NotFoundError: If credential not found (404).
+            AuthenticationError: If API key is invalid (401).
+            ConnectionError: If cannot connect to n8n.
+            ApiError: For other API errors.
+        """
+        try:
+            response = await self.client.get(f"/api/v1/credentials/{credential_id}")
+            response.raise_for_status()
+            result: dict[str, Any] = response.json()
+            return result
+        except httpx.HTTPStatusError as e:
+            _translate_http_error(e, "Credential", credential_id)
+            raise
+        except httpx.HTTPError as e:
+            _translate_connection_error(e, self.base_url)
+            raise
+
+    async def create_credential(
+        self,
+        name: str,
+        credential_type: str,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create a new credential.
+
+        Args:
+            name: Display name for the credential.
+            credential_type: The credential type (e.g., "httpBasicAuth").
+            data: The credential data (secrets, tokens, etc.).
+
+        Returns:
+            Created credential with assigned ID.
+
+        Raises:
+            ValidationError: If credential data is invalid (400).
+            AuthenticationError: If API key is invalid (401).
+            ConnectionError: If cannot connect to n8n.
+            ApiError: For other API errors.
+        """
+        try:
+            payload = {
+                "name": name,
+                "type": credential_type,
+                "data": data,
+            }
+            response = await self.client.post("/api/v1/credentials", json=payload)
+            response.raise_for_status()
+            result: dict[str, Any] = response.json()
+            return result
+        except httpx.HTTPStatusError as e:
+            _translate_http_error(e, "Credential")
+            raise
+        except httpx.HTTPError as e:
+            _translate_connection_error(e, self.base_url)
+            raise

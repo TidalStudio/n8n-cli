@@ -72,6 +72,7 @@ n8n-cli execution <execution-id>
 | `executions` | List workflow executions |
 | `execution` | Get execution details |
 | `trigger` | Trigger a workflow |
+| `credentials` | Manage credentials (list, show, create) |
 
 ## Documentation
 

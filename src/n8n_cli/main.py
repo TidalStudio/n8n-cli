@@ -8,6 +8,7 @@ import click
 from n8n_cli import __version__
 from n8n_cli.commands.configure import configure
 from n8n_cli.commands.create import create
+from n8n_cli.commands.credentials import credentials
 from n8n_cli.commands.delete import delete
 from n8n_cli.commands.disable import disable
 from n8n_cli.commands.enable import enable
@@ -80,6 +81,7 @@ def cli(ctx: click.Context, output_format: str | None, no_color: bool, debug: bo
 # Register commands
 cli.add_command(configure)
 cli.add_command(create)
+cli.add_command(credentials)
 cli.add_command(delete)
 cli.add_command(disable)
 cli.add_command(enable)
