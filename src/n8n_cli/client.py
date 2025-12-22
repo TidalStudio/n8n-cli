@@ -507,69 +507,6 @@ class N8nClient:
             _translate_connection_error(e, self.base_url)
             raise
 
-    async def get_credentials(
-        self,
-        credential_type: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Fetch credentials from n8n instance.
-
-        Args:
-            credential_type: Filter by credential type (e.g., "httpBasicAuth").
-
-        Returns:
-            List of credential dictionaries.
-
-        Raises:
-            AuthenticationError: If API key is invalid (401).
-            ConnectionError: If cannot connect to n8n.
-            ApiError: For other API errors.
-        """
-        try:
-            response = await self.client.get("/api/v1/credentials")
-            response.raise_for_status()
-            credentials: list[dict[str, Any]] = response.json().get("data", [])
-
-            # Apply client-side filtering by type
-            if credential_type:
-                credentials = [
-                    c for c in credentials if c.get("type") == credential_type
-                ]
-
-            return credentials
-        except httpx.HTTPStatusError as e:
-            _translate_http_error(e, "Credentials")
-            raise
-        except httpx.HTTPError as e:
-            _translate_connection_error(e, self.base_url)
-            raise
-
-    async def get_credential(self, credential_id: str) -> dict[str, Any]:
-        """Fetch a single credential by ID.
-
-        Args:
-            credential_id: The credential ID.
-
-        Returns:
-            Credential details including data fields.
-
-        Raises:
-            NotFoundError: If credential not found (404).
-            AuthenticationError: If API key is invalid (401).
-            ConnectionError: If cannot connect to n8n.
-            ApiError: For other API errors.
-        """
-        try:
-            response = await self.client.get(f"/api/v1/credentials/{credential_id}")
-            response.raise_for_status()
-            result: dict[str, Any] = response.json()
-            return result
-        except httpx.HTTPStatusError as e:
-            _translate_http_error(e, "Credential", credential_id)
-            raise
-        except httpx.HTTPError as e:
-            _translate_connection_error(e, self.base_url)
-            raise
-
     async def create_credential(
         self,
         name: str,
@@ -604,6 +541,57 @@ class N8nClient:
             return result
         except httpx.HTTPStatusError as e:
             _translate_http_error(e, "Credential")
+            raise
+        except httpx.HTTPError as e:
+            _translate_connection_error(e, self.base_url)
+            raise
+
+    async def delete_credential(self, credential_id: str) -> None:
+        """Delete a credential by ID.
+
+        Args:
+            credential_id: The credential ID to delete.
+
+        Raises:
+            NotFoundError: If credential not found (404).
+            AuthenticationError: If API key is invalid (401).
+            ConnectionError: If cannot connect to n8n.
+            ApiError: For other API errors.
+        """
+        try:
+            response = await self.client.delete(f"/api/v1/credentials/{credential_id}")
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            _translate_http_error(e, "Credential", credential_id)
+            raise
+        except httpx.HTTPError as e:
+            _translate_connection_error(e, self.base_url)
+            raise
+
+    async def get_credential_schema(self, credential_type: str) -> dict[str, Any]:
+        """Get the schema for a credential type.
+
+        Args:
+            credential_type: The credential type (e.g., "httpBasicAuth").
+
+        Returns:
+            Schema dictionary describing required fields.
+
+        Raises:
+            NotFoundError: If credential type not found (404).
+            AuthenticationError: If API key is invalid (401).
+            ConnectionError: If cannot connect to n8n.
+            ApiError: For other API errors.
+        """
+        try:
+            response = await self.client.get(
+                f"/api/v1/credentials/schema/{credential_type}"
+            )
+            response.raise_for_status()
+            result: dict[str, Any] = response.json()
+            return result
+        except httpx.HTTPStatusError as e:
+            _translate_http_error(e, "Credential type", credential_type)
             raise
         except httpx.HTTPError as e:
             _translate_connection_error(e, self.base_url)
